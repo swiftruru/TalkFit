@@ -99,14 +99,28 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
     func speechUnitCount(in text: String) -> Int {
         switch self {
         case .traditionalChinese:
-            text.unicodeScalars.reduce(into: 0) { count, scalar in
-                if (0x4E00...0x9FFF).contains(scalar.value)
-                    || CharacterSet.alphanumerics.contains(scalar) {
+            let scalars = Array(text.unicodeScalars)
+            var insideLatinToken = false
+            return scalars.enumerated().reduce(into: 0) { count, entry in
+                let (index, scalar) = entry
+                if (0x4E00...0x9FFF).contains(scalar.value) {
                     count += 1
+                    insideLatinToken = false
+                } else if scalar.isASCII,
+                          CharacterSet.alphanumerics.contains(scalar) || scalar.value == 39 {
+                    if !insideLatinToken { count += 1 }
+                    insideLatinToken = true
+                } else if scalar.value == 46,
+                          insideLatinToken,
+                          scalars.indices.contains(index + 1),
+                          CharacterSet.decimalDigits.contains(scalars[index + 1]) {
+                    // Keep decimal numbers such as 2.0 inside one mixed-language token.
+                } else {
+                    insideLatinToken = false
                 }
             }
         case .english:
-            text.split { character in
+            return text.split { character in
                 !character.isLetter && !character.isNumber && character != "'"
             }.count
         }

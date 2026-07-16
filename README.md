@@ -76,7 +76,9 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 - 英文預設贅字：`um`、`uh`、`like`、`you know`、`actually`、`basically`、`so`、`right`。
 - 贅字偵測：計算每個詞出現的次數，並在逐字稿中以陶土橘標示。
 - 語速估算：中文以可讀字元、英文以單字數除以錄音時間，換算成每分鐘單位。
-- 逐句語速：優先使用 Apple Speech segment timestamp 與 duration；缺少時間片段時才按句子長度估算。
+- 逐句語速：優先使用 Apple Speech segment timestamp、duration 與句間停頓；缺少時間片段時才按句子長度估算。
+- 穩定切句：有標點時依自然句尾切分；無標點 partial result 則依明顯停頓、連接詞與長度上限拆成可讀的小段。
+- 中英混合：中文模式中的完整英文單字與小數會保留為一個語速單位，不會把 `TalkFit` 拆成七個字母計算。
 - 穩定度：綜合贅字數量及語速與舒適區間的偏差計算。
 - 優先片段：比較可讀逐字稿與保留贅字較完整的分析文本，依贅字密度與句子長度找出最值得先改善的一句。
 
@@ -111,6 +113,7 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 | UI | SwiftUI |
 | 狀態管理 | Swift Observation、`@Observable` |
 | 非同步流程 | Swift Concurrency、`async/await`、`Task` |
+| 測試 | Swift Testing、iOS Simulator unit test target |
 | 錄音 | AVFoundation、`AVAudioEngine` |
 | 語音辨識 | Speech、`SFSpeechRecognizer` |
 | 資料來源 | 記憶體內模型、集中式 fixtures 與裝置端贅字庫偏好 |
@@ -127,14 +130,19 @@ TalkFit/
 ├── FillerLibraryView.swift     # 動態贅字庫編輯與還原確認介面
 ├── FillerLibraryStore.swift    # 裝置端贅字庫差異式持久化
 ├── PracticeLanguage.swift      # 語言、題目、語速區間與 Speech segment models
+├── TranscriptSentenceSegmenter.swift # 標點、停頓與混合語言切句規則
 ├── PaceFeedbackViews.swift     # 錄音中及報告後的逐句語速元件
 ├── TalkFitModel.swift          # 單一狀態來源與完整練習流程
 ├── TalkFitModels.swift         # Domain models、Speech capture、分析結果與示範資料
 ├── TalkFitAnalyzer.swift       # 贅字、語速、穩定度與優先片段的本機規則
 ├── AudioSpeechService.swift    # 麥克風、音量、逐字稿與贅字證據蒐集
+├── FillerEvidenceReducer.swift # partial／候選／最終贅字證據去重
 ├── FillerLanguageModel.swift   # Apple Speech 自訂繁體中文贅字語言模型
 ├── TalkFitTheme.swift          # 色彩、間距、返回列及共用 SwiftUI 元件
 └── Assets.xcassets/            # App 圖像與紙張背景素材
+
+TalkFitTests/
+└── TalkFitAnalyzerTests.swift  # 切句、語速、字界與贅字證據單元測試
 ```
 
 ## 執行環境
@@ -201,6 +209,7 @@ TalkFit/
 - 已在英文贅字庫新增自訂詞並確認數量立即更新。
 - 已關閉並重新啟動 App，確認英文自訂贅字仍保留於裝置。
 - 已驗證單一語言還原，以及同時清除中英文自訂差異的「還原所有語言」流程與確認提示。
+- 已加入並執行 7 個本機單元測試，涵蓋中英混合單位、英文完整單字邊界、無標點長句、停頓切句、示範句界、語速 fallback 與贅字證據去重。
 - 主要畫面驗證證據位於 [`verification/`](verification/)；版面調整紀錄位於 [`verification/padding-audit/`](verification/padding-audit/)。
 
 ## 已知限制
@@ -212,6 +221,7 @@ TalkFit/
 - Apple Speech 仍可能完全忽略非常短、音量較低或與前後字黏在一起的語氣聲；partial／候選證據、自訂 language model 與 contextual hints 能改善蒐集機會，但無法保證捕捉每一次贅字。
 - 自訂 Speech language model 是否生效取決於系統與裝置的 on-device recognition 支援狀況；不可用時會自動退回 contextual hints 與既有分析／示範備援。
 - 目前只針對繁體中文與英文的 30 秒自我介紹短講進行初步優化。
+- 無標點切句使用可解釋的停頓與長度規則；非常長的專有名詞或特殊口語結構仍需更多真機樣本校正。
 - 語速區間與逐句建議是一般口說練習用的產品規則，不是醫療評估、診斷或治療建議。
 
 ## 後續方向

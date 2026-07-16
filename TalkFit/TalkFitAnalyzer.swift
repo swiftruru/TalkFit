@@ -138,7 +138,7 @@ enum TalkFitAnalyzer {
         duration: TimeInterval,
         language: PracticeLanguage
     ) -> [SpeechTextSegment] {
-        let sentences = sentenceTexts(in: transcript)
+        let sentences = sentenceTexts(in: transcript, language: language)
         guard !sentences.isEmpty else { return [] }
         let factors = [0.92, 1.12, 0.84, 1.04]
         let weights = sentences.enumerated().map { index, sentence in
@@ -150,7 +150,7 @@ enum TalkFitAnalyzer {
             let segmentDuration = duration * weight / totalWeight
             defer { cursor += segmentDuration }
             return SpeechTextSegment(
-                text: sentence,
+                text: sentence + (language == .english ? "." : "。"),
                 timestamp: cursor,
                 duration: segmentDuration
             )
@@ -162,46 +162,26 @@ enum TalkFitAnalyzer {
         duration: TimeInterval,
         language: PracticeLanguage
     ) -> [SentencePaceFeedback] {
-        let sentences = sentenceTexts(in: capture.readableTranscript)
-        guard !sentences.isEmpty else { return [] }
-        let totalUnits = max(1, language.speechUnitCount(in: capture.readableTranscript))
-        let orderedSegments = capture.segments.sorted { $0.timestamp < $1.timestamp }
-        var segmentIndex = 0
-
-        return sentences.map { sentence in
-            let units = max(1, language.speechUnitCount(in: sentence))
-            var consumedUnits = 0
-            var start: TimeInterval?
-            var end: TimeInterval?
-
-            while segmentIndex < orderedSegments.count, consumedUnits < units {
-                let segment = orderedSegments[segmentIndex]
-                if start == nil { start = segment.timestamp }
-                end = max(end ?? 0, segment.timestamp + segment.duration)
-                consumedUnits += max(1, language.speechUnitCount(in: segment.text))
-                segmentIndex += 1
-            }
-
-            let proportionalDuration = max(0.8, duration * Double(units) / Double(totalUnits))
-            let sentenceDuration = max(0.8, (end ?? 0) - (start ?? 0))
-            let effectiveDuration = start == nil ? proportionalDuration : sentenceDuration
-            let pace = Int((Double(units) / effectiveDuration * 60).rounded())
+        TranscriptSentenceSegmenter.timedSentences(
+            capture: capture,
+            duration: duration,
+            language: language
+        ).map { sentence in
+            let units = max(1, language.speechUnitCount(in: sentence.text))
+            let pace = Int((Double(units) / sentence.duration * 60).rounded())
             return SentencePaceFeedback(
-                text: sentence,
+                text: sentence.text,
                 pace: pace,
                 state: language.paceState(for: pace)
             )
         }
     }
 
-    static func sentenceTexts(in transcript: String) -> [String] {
-        transcript
-            .components(separatedBy: CharacterSet(charactersIn: "。！？!?。\n"))
-            .flatMap { component in
-                component.components(separatedBy: ". ")
-            }
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    static func sentenceTexts(
+        in transcript: String,
+        language: PracticeLanguage
+    ) -> [String] {
+        TranscriptSentenceSegmenter.sentences(in: transcript, language: language)
     }
 
     private static func prioritySegment(
@@ -209,10 +189,7 @@ enum TalkFitAnalyzer {
         fillerWords: [String],
         language: PracticeLanguage
     ) -> String {
-        let segments = transcript
-            .components(separatedBy: CharacterSet(charactersIn: "。！？!?.\n"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        let segments = sentenceTexts(in: transcript, language: language)
 
         let segment = segments.max { lhs, rhs in
             score(lhs, fillerWords: fillerWords, language: language)

@@ -249,32 +249,7 @@ final class AudioSpeechService {
     }
 
     private func upsert(_ candidate: FillerEvidence) {
-        if let index = latestCapture.fillerEvidence.firstIndex(where: {
-            $0.word == candidate.word && abs($0.timestamp - candidate.timestamp) < 0.28
-        }) {
-            let existing = latestCapture.fillerEvidence[index]
-            if evidenceRank(candidate) > evidenceRank(existing)
-                || (evidenceRank(candidate) == evidenceRank(existing) && candidate.confidence > existing.confidence) {
-                latestCapture.fillerEvidence[index] = FillerEvidence(
-                    id: existing.id,
-                    word: candidate.word,
-                    timestamp: candidate.timestamp,
-                    confidence: candidate.confidence,
-                    source: candidate.source
-                )
-            }
-            return
-        }
-        latestCapture.fillerEvidence.append(candidate)
-    }
-
-    private func evidenceRank(_ evidence: FillerEvidence) -> Int {
-        switch evidence.source {
-        case .final: 3
-        case .partial: 2
-        case .alternative: 1
-        case .sample: 0
-        }
+        FillerEvidenceReducer.upsert(candidate, into: &latestCapture.fillerEvidence)
     }
 
     private func retainMostInformativeTranscript(_ candidate: String) {
