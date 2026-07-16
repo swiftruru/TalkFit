@@ -12,7 +12,7 @@ struct LivePaceNote: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("最新一句 · \(feedback.pace) \(language.paceUnit)")
                     .font(.caption.weight(.bold))
-                Text(feedback.state.suggestion)
+                Text(feedback.suggestion)
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.64))
                     .lineLimit(2)
@@ -29,8 +29,39 @@ struct LivePaceNote: View {
         .background(TalkFitTheme.sageSoft.opacity(0.24), in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "最新一句語速 \(feedback.pace) \(language.paceUnit)，\(feedback.state.label)。\(feedback.state.suggestion)"
+            "最新一句語速 \(feedback.pace) \(language.paceUnit)，\(feedback.state.label)。\(feedback.suggestion)"
         )
+    }
+}
+
+struct RhythmSummaryNote: View {
+    let summary: RhythmSummary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: summary.issueCount == 0 ? "leaf.fill" : "metronome.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(summary.issueCount == 0 ? TalkFitTheme.moss : TalkFitTheme.clay)
+                .frame(width: 30, height: 30)
+                .background(
+                    (summary.issueCount == 0 ? TalkFitTheme.sage : TalkFitTheme.clay).opacity(0.1),
+                    in: Circle()
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(summary.headline)
+                    .font(.subheadline.weight(.bold))
+                Text(summary.detail)
+                    .font(.caption)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(TalkFitTheme.sageSoft.opacity(0.24), in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -75,7 +106,28 @@ private struct SentencePaceRow: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(feedback.state == .steady ? TalkFitTheme.moss : TalkFitTheme.clay)
                 }
-                Text(feedback.state.suggestion)
+
+                if feedback.pauseState != nil || feedback.isSuddenAcceleration {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let pauseState = feedback.pauseState,
+                           let pauseDurationLabel = feedback.pauseDurationLabel {
+                            Label(
+                                "句尾 \(pauseDurationLabel) · \(pauseState.label)",
+                                systemImage: "pause.fill"
+                            )
+                        }
+                        if feedback.isSuddenAcceleration {
+                            Label("突然加快", systemImage: "arrow.up.right")
+                        }
+                    }
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(
+                        feedback.rhythmIssueCount == 0 ? TalkFitTheme.moss : TalkFitTheme.clay
+                    )
+                    .labelStyle(.titleAndIcon)
+                }
+
+                Text(feedback.suggestion)
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
             }

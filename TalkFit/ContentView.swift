@@ -348,6 +348,7 @@ private struct ReportView: View {
                                 .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
                         }
                         PaceScale(pace: result.pace, language: result.language)
+                        RhythmSummaryNote(summary: result.rhythmSummary)
                         Text("贅字 \(result.fillerTotal) 個 · 穩定度 \(result.stability)%")
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
@@ -475,7 +476,7 @@ private struct ComparisonView: View {
                             title: "語速",
                             before: "\(comparison.before.pace)",
                             after: "\(comparison.after.pace)",
-                            improvement: "節奏更自然"
+                            improvement: comparison.rhythmImprovementLabel
                         )
                         Divider().overlay(TalkFitTheme.line)
                         MetricPair(

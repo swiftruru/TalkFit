@@ -37,10 +37,22 @@ enum TalkFitAnalyzer {
         let fillerTotal = counts.values.reduce(0, +)
         let units = language.speechUnitCount(in: transcript)
         let pace = Int((Double(units) / effectiveDuration * 60).rounded())
+        let sentencePaces = sentencePaceFeedback(
+            capture: effectiveCapture,
+            duration: effectiveDuration,
+            language: language
+        )
+        let rhythmSummary = RhythmSummary(feedback: sentencePaces)
         let target = (language.comfortablePace.lowerBound + language.comfortablePace.upperBound) / 2
         let rangeWidth = max(1, language.comfortablePace.upperBound - language.comfortablePace.lowerBound)
         let pacePenalty = abs(pace - target) * 18 / rangeWidth
-        let stability = max(42, min(96, 91 - fillerTotal * 8 - pacePenalty))
+        let rhythmPenalty = rhythmSummary.shortPauseCount * 3
+            + rhythmSummary.longPauseCount * 4
+            + rhythmSummary.suddenAccelerationCount * 6
+        let stability = max(
+            42,
+            min(96, 91 - fillerTotal * 8 - pacePenalty - rhythmPenalty)
+        )
 
         let evidenceTranscript = effectiveCapture.analysisTranscript
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -59,11 +71,7 @@ enum TalkFitAnalyzer {
             fillerEvidence: effectiveCapture.fillerEvidence.sorted { $0.timestamp < $1.timestamp },
             fillerWords: fillerWords,
             language: language,
-            sentencePaces: sentencePaceFeedback(
-                capture: effectiveCapture,
-                duration: effectiveDuration,
-                language: language
-            ),
+            sentencePaces: sentencePaces,
             pace: pace,
             stability: stability,
             prioritySegment: prioritySegment(
@@ -71,7 +79,7 @@ enum TalkFitAnalyzer {
                 fillerWords: fillerWords,
                 language: language
             ),
-            coachingCue: "先停半拍，再用一句話直接說出重點。",
+            coachingCue: coachingCue(for: rhythmSummary),
             source: source
         )
     }
@@ -136,19 +144,33 @@ enum TalkFitAnalyzer {
     static func sampleSegments(
         in transcript: String,
         duration: TimeInterval,
-        language: PracticeLanguage
+        language: PracticeLanguage,
+        round: PracticeRound
     ) -> [SpeechTextSegment] {
         let sentences = sentenceTexts(in: transcript, language: language)
         guard !sentences.isEmpty else { return [] }
-        let factors = [0.92, 1.12, 0.84, 1.04]
+        let factors = round == .first
+            ? [1.15, 0.62, 1.18, 0.92]
+            : [1.0, 0.98, 1.02, 1.0]
+        let pauses = round == .first
+            ? [0.12, 1.55, 0.18]
+            : [0.72, 0.64, 0.78]
+        let totalPause = pauses.prefix(max(0, sentences.count - 1)).reduce(0, +)
+        let speakingDuration = max(Double(sentences.count) * 0.8, duration - totalPause)
         let weights = sentences.enumerated().map { index, sentence in
             Double(max(1, language.speechUnitCount(in: sentence))) * factors[index % factors.count]
         }
         let totalWeight = max(1, weights.reduce(0, +))
         var cursor: TimeInterval = 0
-        return zip(sentences, weights).map { sentence, weight in
-            let segmentDuration = duration * weight / totalWeight
-            defer { cursor += segmentDuration }
+        return zip(sentences, weights).enumerated().map { index, entry in
+            let (sentence, weight) = entry
+            let segmentDuration = speakingDuration * weight / totalWeight
+            defer {
+                cursor += segmentDuration
+                if sentences.indices.contains(index + 1) {
+                    cursor += pauses[index % pauses.count]
+                }
+            }
             return SpeechTextSegment(
                 text: sentence + (language == .english ? "." : "。"),
                 timestamp: cursor,
@@ -162,17 +184,39 @@ enum TalkFitAnalyzer {
         duration: TimeInterval,
         language: PracticeLanguage
     ) -> [SentencePaceFeedback] {
-        TranscriptSentenceSegmenter.timedSentences(
+        let sentences = TranscriptSentenceSegmenter.timedSentences(
             capture: capture,
             duration: duration,
             language: language
-        ).map { sentence in
+        )
+        let paces = sentences.map { sentence in
             let units = max(1, language.speechUnitCount(in: sentence.text))
-            let pace = Int((Double(units) / sentence.duration * 60).rounded())
+            return Int((Double(units) / sentence.duration * 60).rounded())
+        }
+
+        return sentences.enumerated().map { index, sentence in
+            let pace = paces[index]
+            let paceChange = index > 0 ? pace - paces[index - 1] : nil
+            let accelerationThreshold = language == .traditionalChinese ? 45 : 30
+            let isSuddenAcceleration = paceChange.map { change in
+                let previousPace = max(1, paces[index - 1])
+                return change >= accelerationThreshold
+                    && Double(pace) / Double(previousPace) >= 1.28
+            } ?? false
+            let classifiedPauseState: SentencePauseState?
+            if let pauseAfter = sentence.pauseAfter {
+                classifiedPauseState = pauseState(for: pauseAfter)
+            } else {
+                classifiedPauseState = nil
+            }
             return SentencePaceFeedback(
                 text: sentence.text,
                 pace: pace,
-                state: language.paceState(for: pace)
+                state: language.paceState(for: pace),
+                pauseAfter: sentence.pauseAfter,
+                pauseState: classifiedPauseState,
+                paceChange: paceChange,
+                isSuddenAcceleration: isSuddenAcceleration
             )
         }
     }
@@ -215,5 +259,24 @@ enum TalkFitAnalyzer {
         fillerCounts(in: text, fillerWords: fillerWords, language: language)
             .values
             .reduce(0, +)
+    }
+
+    private static func pauseState(for duration: TimeInterval) -> SentencePauseState {
+        if duration < 0.35 { return .short }
+        if duration > 1.25 { return .long }
+        return .balanced
+    }
+
+    private static func coachingCue(for rhythmSummary: RhythmSummary) -> String {
+        if rhythmSummary.suddenAccelerationCount > 0 {
+            return "先把第一個重點說穩，句尾留半拍再接下一句。"
+        }
+        if rhythmSummary.shortPauseCount > 0 {
+            return "句尾多留半拍，再用一句話直接說出重點。"
+        }
+        if rhythmSummary.longPauseCount > 0 {
+            return "先想好下一句的開頭，再讓停頓自然接回重點。"
+        }
+        return "保留現在的停頓，用一句話直接說出重點。"
     }
 }

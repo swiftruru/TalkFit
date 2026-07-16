@@ -179,6 +179,28 @@ enum PaceState: Equatable {
     }
 }
 
+enum SentencePauseState: Equatable {
+    case short
+    case balanced
+    case long
+
+    var label: String {
+        switch self {
+        case .short: "太短"
+        case .balanced: "剛好"
+        case .long: "稍長"
+        }
+    }
+
+    var suggestion: String {
+        switch self {
+        case .short: "句尾再多留半拍，讓下一句的重點有空間。"
+        case .balanced: "這個句尾停頓很自然，保留現在的節奏。"
+        case .long: "停頓稍久，可以先接住下一句再繼續想。"
+        }
+    }
+}
+
 struct SpeechTextSegment: Identifiable, Equatable {
     let id: UUID
     let text: String
@@ -203,11 +225,100 @@ struct SentencePaceFeedback: Identifiable, Equatable {
     let text: String
     let pace: Int
     let state: PaceState
+    let pauseAfter: TimeInterval?
+    let pauseState: SentencePauseState?
+    let paceChange: Int?
+    let isSuddenAcceleration: Bool
 
-    init(id: UUID = UUID(), text: String, pace: Int, state: PaceState) {
+    init(
+        id: UUID = UUID(),
+        text: String,
+        pace: Int,
+        state: PaceState,
+        pauseAfter: TimeInterval? = nil,
+        pauseState: SentencePauseState? = nil,
+        paceChange: Int? = nil,
+        isSuddenAcceleration: Bool = false
+    ) {
         self.id = id
         self.text = text
         self.pace = pace
         self.state = state
+        self.pauseAfter = pauseAfter
+        self.pauseState = pauseState
+        self.paceChange = paceChange
+        self.isSuddenAcceleration = isSuddenAcceleration
+    }
+
+    var suggestion: String {
+        if isSuddenAcceleration {
+            return "這句突然加快，先把第一個重點說穩再往下接。"
+        }
+        if let pauseState, pauseState != .balanced {
+            return pauseState.suggestion
+        }
+        return state.suggestion
+    }
+
+    var pauseDurationLabel: String? {
+        guard let pauseAfter else { return nil }
+        return String(format: "%.1f 秒", pauseAfter)
+    }
+
+    var rhythmIssueCount: Int {
+        let pauseIssue = pauseState == .short || pauseState == .long ? 1 : 0
+        return pauseIssue + (isSuddenAcceleration ? 1 : 0)
+    }
+}
+
+struct RhythmSummary: Equatable {
+    let measuredPauseCount: Int
+    let balancedPauseCount: Int
+    let shortPauseCount: Int
+    let longPauseCount: Int
+    let suddenAccelerationCount: Int
+
+    init(feedback: [SentencePaceFeedback]) {
+        measuredPauseCount = feedback.compactMap(\.pauseState).count
+        balancedPauseCount = feedback.filter { $0.pauseState == .balanced }.count
+        shortPauseCount = feedback.filter { $0.pauseState == .short }.count
+        longPauseCount = feedback.filter { $0.pauseState == .long }.count
+        suddenAccelerationCount = feedback.filter(\.isSuddenAcceleration).count
+    }
+
+    var issueCount: Int {
+        shortPauseCount + longPauseCount + suddenAccelerationCount
+    }
+
+    var headline: String {
+        if suddenAccelerationCount > 0 {
+            return "有 \(suddenAccelerationCount) 句突然加快"
+        }
+        if shortPauseCount > 0 {
+            return "有 \(shortPauseCount) 個句尾接得太快"
+        }
+        if longPauseCount > 0 {
+            return "有 \(longPauseCount) 個停頓稍久"
+        }
+        if measuredPauseCount > 0 {
+            return "句尾停頓很自然"
+        }
+        return "先從逐句語速看節奏"
+    }
+
+    var detail: String {
+        if suddenAccelerationCount > 0 {
+            return "先留意突然加快的句子，再用句尾停頓把重點分開。"
+        }
+        if shortPauseCount > 0 {
+            return "句尾多留半拍，聽的人會更容易跟上下一個重點。"
+        }
+        if longPauseCount > 0 {
+            return "停頓時先想好下一句的開頭，會更連貫。"
+        }
+        if measuredPauseCount > 0 {
+            return "停頓有把句子分開，保留這個呼吸感。"
+        }
+        return "這次缺少足夠的時間戳，仍會保留逐句語速建議。"
     }
 }

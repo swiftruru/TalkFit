@@ -58,6 +58,64 @@ struct TalkFitAnalyzerTests {
         #expect(feedback[1].text.contains("TalkFit"))
     }
 
+    @Test("節奏分析會標示句尾太短、停頓過長與突然加速")
+    func rhythmSignalsUseSpeechTiming() {
+        let capture = SpeechCapture(
+            readableTranscript: "第一句。第二句。第三句。",
+            analysisTranscript: "第一句。第二句。第三句。",
+            fillerEvidence: [],
+            segments: [
+                SpeechTextSegment(text: "第一句。", timestamp: 0, duration: 1.5),
+                SpeechTextSegment(text: "第二句。", timestamp: 1.6, duration: 0.7),
+                SpeechTextSegment(text: "第三句。", timestamp: 3.9, duration: 1.0)
+            ],
+            source: .recognized
+        )
+
+        let feedback = TalkFitAnalyzer.sentencePaceFeedback(
+            capture: capture,
+            duration: 5,
+            language: .traditionalChinese
+        )
+
+        #expect(feedback.count == 3)
+        #expect(feedback[0].pauseState == .short)
+        #expect(feedback[1].isSuddenAcceleration)
+        #expect(feedback[1].pauseState == .long)
+        #expect(RhythmSummary(feedback: feedback).issueCount == 3)
+    }
+
+    @Test("示範重練會把句尾停頓調整到自然區間")
+    func sampleRetryImprovesRhythm() {
+        for language in PracticeLanguage.allCases {
+            let firstCapture = TalkFitFixtures.sampleCapture(
+                for: .first,
+                language: language,
+                fillerWords: language.defaultFillerWords
+            )
+            let retryCapture = TalkFitFixtures.sampleCapture(
+                for: .retry,
+                language: language,
+                fillerWords: language.defaultFillerWords
+            )
+
+            let firstSummary = RhythmSummary(feedback: TalkFitAnalyzer.sentencePaceFeedback(
+                capture: firstCapture,
+                duration: 31,
+                language: language
+            ))
+            let retrySummary = RhythmSummary(feedback: TalkFitAnalyzer.sentencePaceFeedback(
+                capture: retryCapture,
+                duration: 22,
+                language: language
+            ))
+
+            #expect(firstSummary.issueCount >= 2)
+            #expect(retrySummary.measuredPauseCount >= 1)
+            #expect(retrySummary.issueCount == 0)
+        }
+    }
+
     @Test("缺少時間 segment 時仍能按內容估算語速")
     func proportionalPaceFallback() {
         let capture = SpeechCapture(
@@ -76,6 +134,8 @@ struct TalkFitAnalyzerTests {
 
         #expect(feedback.count == 1)
         #expect(feedback[0].pace == 180)
+        #expect(feedback[0].pauseState == nil)
+        #expect(!feedback[0].isSuddenAcceleration)
     }
 
     @Test("示範 segments 保留原本句尾邊界")

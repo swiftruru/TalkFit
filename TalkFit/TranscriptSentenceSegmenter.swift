@@ -2,7 +2,9 @@ import Foundation
 
 struct TimedTranscriptSentence: Equatable {
     let text: String
+    let startTime: TimeInterval
     let duration: TimeInterval
+    let pauseAfter: TimeInterval?
 }
 
 enum TranscriptSentenceSegmenter {
@@ -70,7 +72,7 @@ enum TranscriptSentenceSegmenter {
         }
         finishCurrentGroup()
 
-        return groups.flatMap { group -> [TimedTranscriptSentence] in
+        let timedSentences = groups.flatMap { group -> [TimedTranscriptSentence] in
             let text = joinedText(for: group, language: language)
             let refined = sentences(in: text, language: language)
             guard !refined.isEmpty else { return [] }
@@ -80,13 +82,37 @@ enum TranscriptSentenceSegmenter {
             let totalUnits = max(1, refined.reduce(0) {
                 $0 + language.speechUnitCount(in: $1)
             })
+            var cursor = start
             return refined.map { sentence in
                 let units = max(1, language.speechUnitCount(in: sentence))
+                let sentenceDuration = max(
+                    0.8,
+                    groupDuration * Double(units) / Double(totalUnits)
+                )
+                defer { cursor += sentenceDuration }
                 return TimedTranscriptSentence(
                     text: sentence,
-                    duration: max(0.8, groupDuration * Double(units) / Double(totalUnits))
+                    startTime: cursor,
+                    duration: sentenceDuration,
+                    pauseAfter: nil
                 )
             }
+        }
+
+        return timedSentences.enumerated().map { index, sentence in
+            let pauseAfter: TimeInterval?
+            if timedSentences.indices.contains(index + 1) {
+                let sentenceEnd = sentence.startTime + sentence.duration
+                pauseAfter = max(0, timedSentences[index + 1].startTime - sentenceEnd)
+            } else {
+                pauseAfter = nil
+            }
+            return TimedTranscriptSentence(
+                text: sentence.text,
+                startTime: sentence.startTime,
+                duration: sentence.duration,
+                pauseAfter: pauseAfter
+            )
         }
     }
 
@@ -99,11 +125,19 @@ enum TranscriptSentenceSegmenter {
         let totalUnits = max(1, result.reduce(0) {
             $0 + language.speechUnitCount(in: $1)
         })
+        var cursor: TimeInterval = 0
         return result.map { sentence in
             let units = max(1, language.speechUnitCount(in: sentence))
+            let sentenceDuration = max(
+                0.8,
+                duration * Double(units) / Double(totalUnits)
+            )
+            defer { cursor += sentenceDuration }
             return TimedTranscriptSentence(
                 text: sentence,
-                duration: max(0.8, duration * Double(units) / Double(totalUnits))
+                startTime: cursor,
+                duration: sentenceDuration,
+                pauseAfter: nil
             )
         }
     }

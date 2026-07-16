@@ -116,6 +116,10 @@ struct PracticeResult: Equatable {
 
     var paceUnit: String { language.paceUnit }
 
+    var rhythmSummary: RhythmSummary {
+        RhythmSummary(feedback: sentencePaces)
+    }
+
     var durationLabel: String {
         let seconds = max(1, Int(duration.rounded()))
         return "\(seconds) 秒"
@@ -146,6 +150,15 @@ struct ComparisonResult: Equatable {
 
     var fillerImprovement: Int { max(0, before.fillerTotal - after.fillerTotal) }
     var stabilityImprovement: Int { max(0, after.stability - before.stability) }
+    var rhythmIssueImprovement: Int {
+        max(0, before.rhythmSummary.issueCount - after.rhythmSummary.issueCount)
+    }
+
+    var rhythmImprovementLabel: String {
+        rhythmIssueImprovement > 0
+            ? "少了 \(rhythmIssueImprovement) 個節奏提醒"
+            : "停頓更自然"
+    }
 }
 
 struct PracticeHistory: Identifiable {
@@ -189,7 +202,8 @@ enum TalkFitFixtures {
             segments: TalkFitAnalyzer.sampleSegments(
                 in: readableTranscript,
                 duration: duration,
-                language: language
+                language: language,
+                round: round
             ),
             source: .sample
         )
