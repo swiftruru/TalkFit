@@ -256,11 +256,11 @@
 				DEVELOPMENT_TEAM = CY2SFJP52M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TalkFit 需要使用麥克風，才能錄下你的練習並提供即時回饋。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TalkFit 使用 Apple 語音辨識將你的練習轉成逐字稿。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TalkFit 需要使用麥克風，才能錄下你的練習並提供即時回饋。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TalkFit 使用 Apple 語音辨識將你的練習轉成逐字稿。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -290,11 +290,11 @@
 				DEVELOPMENT_TEAM = CY2SFJP52M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TalkFit 需要使用麥克風，才能錄下你的練習並提供即時回饋。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TalkFit 使用 Apple 語音辨識將你的練習轉成逐字稿。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TalkFit 需要使用麥克風，才能錄下你的練習並提供即時回饋。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TalkFit 使用 Apple 語音辨識將你的練習轉成逐字稿。";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

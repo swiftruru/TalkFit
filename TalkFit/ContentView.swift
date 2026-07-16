@@ -2,18 +2,19 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = TalkFitModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             PaperBackground()
             screen
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .transition(.opacity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(TalkFitTheme.pine)
         .foregroundStyle(TalkFitTheme.ink)
-        .animation(.easeInOut(duration: 0.35), value: model.stage)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: model.stage)
     }
 
     @ViewBuilder
@@ -23,8 +24,8 @@ struct ContentView: View {
             HomeView(model: model)
         case .recording(let round):
             RecordingView(model: model, round: round)
-        case .analyzing:
-            AnalysisView()
+        case .analyzing(let round):
+            AnalysisView(model: model, round: round)
         case .report:
             if let result = model.firstResult {
                 ReportView(model: model, result: result)
@@ -170,7 +171,16 @@ private struct RecordingView: View {
 
     var body: some View {
         VStack(spacing: 26) {
-            BrandHeader(compact: true)
+            GardenNavigationHeader(
+                destination: round == .first ? "首頁" : "重練",
+                prompt: leavePrompt
+            ) {
+                if round == .first {
+                    model.returnHome()
+                } else {
+                    model.cancelRetryAndReturnToPreparation()
+                }
+            }
 
             VStack(spacing: 7) {
                 Text(round == .first ? "正在聽你說" : "正在重練這一段")
@@ -191,6 +201,26 @@ private struct RecordingView: View {
                     .foregroundStyle(TalkFitTheme.moss)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
+            }
+
+            if !model.liveFillerEvidence.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("剛剛聽到", systemImage: "waveform.badge.mic")
+                        .font(.caption.weight(.semibold))
+                    HStack(spacing: 7) {
+                        ForEach(Array(model.liveFillerEvidence.suffix(3))) { event in
+                            Text("\(event.word) · \(event.timestampLabel)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background(TalkFitTheme.clay.opacity(0.1), in: Capsule())
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(TalkFitTheme.clay)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("已捕捉 \(model.liveFillerEvidence.count) 個可能的贅字")
             }
 
             NotebookSection(title: round == .first ? "題目" : "這次只練一句") {
@@ -224,6 +254,24 @@ private struct RecordingView: View {
         }
         .talkFitPageInsets(bottom: 16)
     }
+
+    private var leavePrompt: GardenLeavePrompt {
+        if round == .first {
+            GardenLeavePrompt(
+                title: "要離開這次錄音嗎？",
+                message: "目前錄下的內容與即時逐字稿不會保留。",
+                leaveTitle: "離開練習",
+                stayTitle: "繼續錄音"
+            )
+        } else {
+            GardenLeavePrompt(
+                title: "要放棄這次重練嗎？",
+                message: "這次重練的錄音不會保留，但原本的練習回饋還在。",
+                leaveTitle: "放棄這次重練",
+                stayTitle: "繼續錄音"
+            )
+        }
+    }
 }
 
 private struct WaveformView: View {
@@ -247,35 +295,63 @@ private struct WaveformView: View {
 }
 
 private struct AnalysisView: View {
+    let model: TalkFitModel
+    let round: PracticeRound
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var growing = false
 
     var body: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            ZStack {
-                Circle()
-                    .stroke(TalkFitTheme.sage.opacity(0.25), lineWidth: 2)
-                    .frame(width: 116, height: 116)
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 46))
-                    .foregroundStyle(TalkFitTheme.moss)
-                    .scaleEffect(growing ? 1.08 : 0.82)
-                    .rotationEffect(.degrees(growing ? 7 : -7))
+        VStack(spacing: 0) {
+            GardenNavigationHeader(
+                destination: round == .first ? "首頁" : "重練",
+                prompt: leavePrompt,
+                confirmationDidChange: model.setAnalysisPaused
+            ) {
+                if round == .first {
+                    model.returnHome()
+                } else {
+                    model.cancelRetryAndReturnToPreparation()
+                }
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: growing)
-            Text("正在整理你的表達")
-                .font(.system(.title2, design: .serif, weight: .semibold))
-            Text("找出最值得先重練的一小段")
-                .font(.subheadline)
-                .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
-            ProgressView()
-                .tint(TalkFitTheme.moss)
-                .accessibilityLabel("正在分析")
-            Spacer()
+
+            VStack(spacing: 22) {
+                Spacer()
+                ZStack {
+                    Circle()
+                        .stroke(TalkFitTheme.sage.opacity(0.25), lineWidth: 2)
+                        .frame(width: 116, height: 116)
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 46))
+                        .foregroundStyle(TalkFitTheme.moss)
+                        .scaleEffect(growing ? 1.08 : 0.82)
+                        .rotationEffect(.degrees(growing ? 7 : -7))
+                }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: growing)
+                Text("正在整理你的表達")
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                Text("找出最值得先重練的一小段")
+                    .font(.subheadline)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                ProgressView()
+                    .tint(TalkFitTheme.moss)
+                    .accessibilityLabel("正在分析")
+                Spacer()
+            }
         }
-        .padding(.horizontal, TalkFitTheme.pageGutter)
+        .talkFitPageInsets(bottom: 16)
         .onAppear { growing = true }
+    }
+
+    private var leavePrompt: GardenLeavePrompt {
+        GardenLeavePrompt(
+            title: round == .first ? "停止整理並離開嗎？" : "停止整理這次重練嗎？",
+            message: round == .first
+                ? "剛完成的錄音與分析結果不會保留。"
+                : "這次重練結果不會保留，但原本的練習回饋還在。",
+            leaveTitle: round == .first ? "離開練習" : "放棄這次重練",
+            stayTitle: "繼續整理"
+        )
     }
 }
 
@@ -286,7 +362,17 @@ private struct ReportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                BrandHeader(compact: true)
+                GardenNavigationHeader(
+                    destination: "首頁",
+                    prompt: GardenLeavePrompt(
+                        title: "要離開這份回饋嗎？",
+                        message: "這次練習尚未完成重練，返回首頁後回饋不會保留。",
+                        leaveTitle: "返回首頁",
+                        stayTitle: "繼續查看"
+                    )
+                ) {
+                    model.returnHome()
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(result.source.label)
@@ -323,11 +409,40 @@ private struct ReportView: View {
                     .accessibilityIdentifier("report.retry")
                 }
 
-                NotebookSection(title: "逐字稿 · 橘色是贅字") {
-                    Text(result.highlightedTranscript)
-                        .font(.body)
-                        .lineSpacing(5)
-                        .fixedSize(horizontal: false, vertical: true)
+                NotebookSection(title: "逐字稿 · 橘色是文字中的贅字") {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(result.highlightedTranscript)
+                            .font(.body)
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if !result.additionalFillerEvidence.isEmpty {
+                            Divider().overlay(TalkFitTheme.line)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("聲音裡還聽到", systemImage: "waveform")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(TalkFitTheme.clay)
+                                VStack(alignment: .leading, spacing: 7) {
+                                    ForEach(result.additionalFillerEvidence) { event in
+                                        HStack(spacing: 8) {
+                                            Text(event.word)
+                                                .font(.caption.weight(.bold))
+                                            Text(event.timestampLabel)
+                                                .font(.caption.monospacedDigit())
+                                            Spacer(minLength: 0)
+                                        }
+                                        .foregroundStyle(TalkFitTheme.clay)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(TalkFitTheme.clay.opacity(0.1), in: Capsule())
+                                    }
+                                }
+                                Text("逐字稿省略的語氣聲，也已計入這次練習。")
+                                    .font(.caption)
+                                    .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
+                            }
+                        }
+                    }
                 }
 
                 NotebookSection(title: "這次的節奏") {
@@ -390,7 +505,9 @@ private struct RetryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            BrandHeader(compact: true)
+            GardenNavigationHeader(destination: "回饋", prompt: nil) {
+                model.returnToReport()
+            }
             Spacer(minLength: 8)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -439,7 +556,17 @@ private struct ComparisonView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                BrandHeader(compact: true)
+                GardenNavigationHeader(
+                    destination: "原始回饋",
+                    prompt: GardenLeavePrompt(
+                        title: "返回原始回饋嗎？",
+                        message: "這次前後比較會離開畫面；你仍可以從原始回饋再次重練。",
+                        leaveTitle: "返回原始回饋",
+                        stayTitle: "留在比較頁"
+                    )
+                ) {
+                    model.returnToReport()
+                }
 
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 10) {
