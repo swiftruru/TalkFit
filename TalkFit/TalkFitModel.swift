@@ -15,6 +15,9 @@ final class TalkFitModel {
     var fallbackNotice: String?
     var isDemoMode = false
     var selectedLanguage: PracticeLanguage = .traditionalChinese
+    var isHistoryChoicePresented = false
+    private(set) var historyPreference: HistoryPreference
+    private(set) var practiceHistory: [PracticeHistorySummary] = []
     private(set) var fillerWordsByLanguage: [PracticeLanguage: [String]]
 
     var activeFillerWords: [String] {
@@ -23,13 +26,16 @@ final class TalkFitModel {
 
     @ObservationIgnored private let speech = AudioSpeechService()
     @ObservationIgnored private let fillerStore: FillerLibraryStore
+    @ObservationIgnored private let historyStore: PracticeHistoryStore?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var analysisPaused = false
 
-    init() {
+    init(historyStore: PracticeHistoryStore? = nil) {
         let fillerStore = FillerLibraryStore()
         self.fillerStore = fillerStore
+        self.historyStore = historyStore
+        historyPreference = historyStore?.preference ?? .undecided
         fillerWordsByLanguage = fillerStore.load()
         speech.levelDidChange = { [weak self] level in self?.audioLevel = level }
         speech.captureDidChange = { [weak self] capture in
@@ -46,6 +52,27 @@ final class TalkFitModel {
             language: selectedLanguage,
             fillerWords: activeFillerWords
         )
+        reloadHistory()
+    }
+
+    var isHistoryEnabled: Bool {
+        historyPreference == .enabled
+    }
+
+    var recentPracticeHistory: [PracticeHistorySummary] {
+        Array(practiceHistory.prefix(3))
+    }
+
+    var historyFillerSummary: String {
+        guard !practiceHistory.isEmpty else { return "累積中" }
+        let improvement = practiceHistory.reduce(0) { $0 + $1.fillerImprovement }
+        return improvement > 0 ? "−\(improvement)" : "持平"
+    }
+
+    var historyStabilitySummary: String {
+        guard !practiceHistory.isEmpty else { return "等資料" }
+        let improvement = practiceHistory.reduce(0) { $0 + $1.stabilityImprovement }
+        return improvement > 0 ? "+\(improvement)%" : "持平"
     }
 
     func selectLanguage(_ language: PracticeLanguage) {
@@ -214,7 +241,66 @@ final class TalkFitModel {
         comparison = nil
         fallbackNotice = nil
         isDemoMode = false
+        isHistoryChoicePresented = false
+        reloadHistory()
         stage = .home
+    }
+
+    func acceptComparison() {
+        guard let comparison else {
+            returnHome()
+            return
+        }
+
+        let isRealPractice = comparison.before.source == .recognized
+            && comparison.after.source == .recognized
+        guard isRealPractice else {
+            returnHome()
+            return
+        }
+
+        if historyPreference == .undecided, historyStore != nil {
+            isHistoryChoicePresented = true
+            return
+        }
+
+        if historyPreference == .enabled {
+            historyStore?.save(comparison)
+        }
+        returnHome()
+    }
+
+    func enableHistoryAndSave() {
+        setHistoryEnabled(true)
+        if let comparison {
+            historyStore?.save(comparison)
+        }
+        returnHome()
+    }
+
+    func declineHistoryAndFinish() {
+        setHistoryEnabled(false)
+        returnHome()
+    }
+
+    func setHistoryEnabled(_ enabled: Bool) {
+        historyPreference = enabled ? .enabled : .disabled
+        historyStore?.setPreference(historyPreference)
+        reloadHistory()
+    }
+
+    func deleteHistory(id: UUID) {
+        historyStore?.delete(id: id)
+        reloadHistory()
+    }
+
+    func deleteAllHistory() {
+        historyStore?.deleteAll()
+        reloadHistory()
+    }
+
+    func reloadHistory() {
+        practiceHistory = historyStore?.fetchAll() ?? []
     }
 
     private func cancelTransientWork() {

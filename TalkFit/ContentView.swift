@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var model = TalkFitModel()
+    let model: TalkFitModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -432,6 +432,14 @@ private struct ComparisonView: View {
     let model: TalkFitModel
     let comparison: ComparisonResult
 
+    @Bindable private var bindableModel: TalkFitModel
+
+    init(model: TalkFitModel, comparison: ComparisonResult) {
+        self.model = model
+        self.comparison = comparison
+        _bindableModel = Bindable(model)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -506,15 +514,26 @@ private struct ComparisonView: View {
         .safeAreaInset(edge: .bottom) {
             BottomActionBar {
                 Button("收下這次進步") {
-                    model.returnHome()
+                    model.acceptComparison()
                 }
                 .buttonStyle(PrimaryActionStyle())
                 .accessibilityIdentifier("comparison.done")
             }
         }
+        .alert("要把進步留在這台 iPhone 嗎？", isPresented: $bindableModel.isHistoryChoicePresented) {
+            Button("暫時不要") {
+                model.declineHistoryAndFinish()
+            }
+            Button("開啟並保存") {
+                model.enableHistoryAndSave()
+            }
+            Button("留在比較頁", role: .cancel) {}
+        } message: {
+            Text("只保存日期、語言與前後指標；不保存錄音、逐字稿、逐句內容或贅字時間戳。你之後可隨時關閉或刪除。")
+        }
     }
 }
 
 #Preview("首頁") {
-    ContentView()
+    ContentView(model: TalkFitModel())
 }

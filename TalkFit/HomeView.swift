@@ -10,9 +10,9 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: TalkFitTheme.sectionSpacing) {
                 BrandHeader()
                 HomeIntroduction()
-                GrowthStrip()
+                GrowthStrip(model: model)
                 practiceSheet
-                PracticeHistoryList()
+                PracticeHistoryList(model: model, showHistory: showHistory)
             }
             .talkFitPageInsets(bottom: 132)
         }
@@ -38,6 +38,9 @@ struct HomeView: View {
             case .fillerLibrary:
                 FillerLibraryView(model: model)
                     .presentationDetents([.medium, .large])
+            case .practiceHistory:
+                PracticeHistoryView(model: model)
+                    .presentationDetents([.large])
             }
         }
     }
@@ -114,6 +117,10 @@ struct HomeView: View {
         presentedSheet = .fillerLibrary
     }
 
+    private func showHistory() {
+        presentedSheet = .practiceHistory
+    }
+
     private func startPractice() {
         model.startPractice()
     }
@@ -125,6 +132,7 @@ struct HomeView: View {
 
 private enum HomeSheet: String, Identifiable {
     case fillerLibrary
+    case practiceHistory
 
     var id: String { rawValue }
 }
@@ -215,13 +223,15 @@ private struct HomeIntroduction: View {
 }
 
 private struct GrowthStrip: View {
+    let model: TalkFitModel
+
     var body: some View {
         HStack(spacing: 0) {
-            GrowthItem(value: "−35%", label: "贅字")
+            GrowthItem(value: model.historyFillerSummary, label: "贅字少")
             Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            GrowthItem(value: "更穩", label: "語速")
+            GrowthItem(value: model.historyStabilitySummary, label: "穩定度")
             Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            GrowthItem(value: "3 次", label: "已練習")
+            GrowthItem(value: "\(model.practiceHistory.count) 次", label: "已保存")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 14)
@@ -230,7 +240,9 @@ private struct GrowthStrip: View {
             in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("成長摘要：贅字減少百分之三十五，語速更穩，已完成三次練習")
+        .accessibilityLabel(
+            "成長摘要：贅字 \(model.historyFillerSummary)，穩定度 \(model.historyStabilitySummary)，已保存 \(model.practiceHistory.count) 次"
+        )
     }
 }
 
@@ -248,26 +260,72 @@ private struct GrowthItem: View {
 }
 
 private struct PracticeHistoryList: View {
+    let model: TalkFitModel
+    let showHistory: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("最近的練習")
-                .font(.headline)
-            ForEach(TalkFitFixtures.history) { item in
-                HStack(spacing: 12) {
-                    Image(systemName: "leaf")
-                        .foregroundStyle(TalkFitTheme.sage)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).font(.subheadline.weight(.semibold))
-                        Text(item.note).font(.caption).foregroundStyle(TalkFitTheme.moss)
+            HStack {
+                Text("最近的練習")
+                    .font(.headline)
+                Spacer()
+                Button("管理", action: showHistory)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(TalkFitTheme.moss)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("home.history")
+            }
+
+            if model.recentPracticeHistory.isEmpty {
+                Button(action: showHistory) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: model.isHistoryEnabled ? "leaf" : "lock.shield")
+                            .foregroundStyle(TalkFitTheme.sage)
+                            .frame(width: 30)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.isHistoryEnabled ? "等待第一筆真實練習" : "本機練習紀錄尚未開啟")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(TalkFitTheme.ink)
+                            Text(model.isHistoryEnabled
+                                 ? "完成練習與重練後，這裡會留下不含錄音與逐字稿的摘要。"
+                                 : "由你選擇是否保存；示範結果永遠不會寫入。")
+                                .font(.caption)
+                                .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 6)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(TalkFitTheme.sage)
+                            .accessibilityHidden(true)
                     }
-                    Spacer()
-                    Text(item.date).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.48))
+                    .padding(16)
+                    .background(
+                        TalkFitTheme.sageSoft.opacity(0.24),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
                 }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 4)
-                if item.id != TalkFitFixtures.history.last?.id {
-                    Divider().overlay(TalkFitTheme.line)
+                .buttonStyle(.plain)
+            } else {
+                ForEach(Array(model.recentPracticeHistory.enumerated()), id: \.element.id) { index, item in
+                    HStack(spacing: 12) {
+                        Image(systemName: "leaf")
+                            .foregroundStyle(TalkFitTheme.sage)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.promptTitle).font(.subheadline.weight(.semibold))
+                            Text(item.improvementNote).font(.caption).foregroundStyle(TalkFitTheme.moss)
+                        }
+                        Spacer()
+                        Text(item.dateLabel).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.48))
+                    }
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 4)
+                    if index < model.recentPracticeHistory.count - 1 {
+                        Divider().overlay(TalkFitTheme.line)
+                    }
                 }
             }
         }

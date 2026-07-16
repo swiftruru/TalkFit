@@ -161,13 +161,6 @@ struct ComparisonResult: Equatable {
     }
 }
 
-struct PracticeHistory: Identifiable {
-    let id = UUID()
-    let title: String
-    let date: String
-    let note: String
-}
-
 enum TalkFitFixtures {
     static func sampleCapture(
         for round: PracticeRound,
@@ -208,10 +201,4 @@ enum TalkFitFixtures {
             source: .sample
         )
     }
-
-    static let history = [
-        PracticeHistory(title: "專案近況", date: "昨天", note: "開頭更俐落了"),
-        PracticeHistory(title: "30 秒自我介紹", date: "3 天前", note: "少了 2 個「然後」"),
-        PracticeHistory(title: "會議提案", date: "上週", note: "語速更穩定")
-    ]
 }
