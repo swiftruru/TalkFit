@@ -44,7 +44,7 @@ struct HomeView: View {
         .sheet(item: $presentedSheet) { destination in
             switch destination {
             case .fillerLibrary:
-                FillerLibrarySheet(model: model)
+                FillerLibraryView(model: model)
                     .presentationDetents([.medium, .large])
             }
         }
@@ -200,93 +200,5 @@ private struct PracticeHistoryList: View {
                 }
             }
         }
-    }
-}
-
-private struct FillerLibrarySheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let model: TalkFitModel
-
-    @State private var newWord = ""
-    @State private var validationMessage: String?
-    @FocusState private var isInputFocused: Bool
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("新增贅字") {
-                    TextField(inputPlaceholder, text: $newWord)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(model.selectedLanguage == .english)
-                        .submitLabel(.done)
-                        .focused($isInputFocused)
-                        .onSubmit(addWord)
-
-                    Button("加入贅字庫", action: addWord)
-                        .disabled(newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    if let validationMessage {
-                        Text(validationMessage)
-                            .font(.caption)
-                            .foregroundStyle(TalkFitTheme.clay)
-                    }
-                }
-
-                Section {
-                    ForEach(model.activeFillerWords, id: \.self) { word in
-                        HStack {
-                            Text(word)
-                            Spacer()
-                            Button {
-                                removeWord(word)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(TalkFitTheme.clay.opacity(0.78))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("移除贅字 \(word)")
-                        }
-                    }
-                } header: {
-                    Text("\(model.selectedLanguage.displayName) 贅字庫 · \(model.activeFillerWords.count) 個")
-                } footer: {
-                    Text("新增或刪除後會立即套用到下一次辨識與分析；目前只在本次開啟 App 期間保留。")
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(PaperBackground())
-            .tint(TalkFitTheme.pine)
-            .navigationTitle("調整贅字庫")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成", action: dismissSheet)
-                }
-            }
-            .onAppear { isInputFocused = true }
-        }
-    }
-
-    private var inputPlaceholder: String {
-        model.selectedLanguage == .english ? "例如：I mean" : "例如：老實說"
-    }
-
-    private func addWord() {
-        if model.addFillerWord(newWord) {
-            newWord = ""
-            validationMessage = nil
-        } else {
-            validationMessage = "這個詞已存在、內容為空，或贅字庫已達 40 個。"
-        }
-    }
-
-    private func removeWord(_ word: String) {
-        model.removeFillerWord(word)
-        validationMessage = nil
-    }
-
-    private func dismissSheet() {
-        dismiss()
     }
 }

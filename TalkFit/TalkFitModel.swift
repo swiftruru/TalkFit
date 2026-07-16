@@ -15,22 +15,22 @@ final class TalkFitModel {
     var fallbackNotice: String?
     var isDemoMode = false
     var selectedLanguage: PracticeLanguage = .traditionalChinese
-    private(set) var fillerWordsByLanguage = Dictionary(
-        uniqueKeysWithValues: PracticeLanguage.allCases.map { language in
-            (language, language.defaultFillerWords)
-        }
-    )
+    private(set) var fillerWordsByLanguage: [PracticeLanguage: [String]]
 
     var activeFillerWords: [String] {
         fillerWordsByLanguage[selectedLanguage] ?? selectedLanguage.defaultFillerWords
     }
 
     @ObservationIgnored private let speech = AudioSpeechService()
+    @ObservationIgnored private let fillerStore: FillerLibraryStore
     @ObservationIgnored private var clockTask: Task<Void, Never>?
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var analysisPaused = false
 
     init() {
+        let fillerStore = FillerLibraryStore()
+        self.fillerStore = fillerStore
+        fillerWordsByLanguage = fillerStore.load()
         speech.levelDidChange = { [weak self] level in self?.audioLevel = level }
         speech.captureDidChange = { [weak self] capture in
             guard let self else { return }
@@ -65,6 +65,7 @@ final class TalkFitModel {
             selectedLanguage.normalizeFiller($0) == normalized
         }) else { return false }
         fillerWordsByLanguage[selectedLanguage, default: []].append(normalized)
+        fillerStore.save(fillerWordsByLanguage)
         speech.prewarmFillerLanguageModel(
             language: selectedLanguage,
             fillerWords: activeFillerWords
@@ -74,6 +75,30 @@ final class TalkFitModel {
 
     func removeFillerWord(_ word: String) {
         fillerWordsByLanguage[selectedLanguage, default: []].removeAll { $0 == word }
+        fillerStore.save(fillerWordsByLanguage)
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func resetFillerWords(for language: PracticeLanguage) {
+        fillerWordsByLanguage[language] = language.defaultFillerWords
+        fillerStore.save(fillerWordsByLanguage)
+        guard language == selectedLanguage else { return }
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func resetAllFillerWords() {
+        fillerWordsByLanguage = Dictionary(
+            uniqueKeysWithValues: PracticeLanguage.allCases.map { language in
+                (language, language.defaultFillerWords)
+            }
+        )
+        fillerStore.resetAll()
         speech.prewarmFillerLanguageModel(
             language: selectedLanguage,
             fillerWords: activeFillerWords

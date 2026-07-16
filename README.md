@@ -56,7 +56,8 @@ flowchart LR
 - 中文與英文各自擁有獨立預設贅字庫。
 - 使用者可從首頁開啟贅字庫，新增自己的口頭習慣或刪除不需要的詞。
 - 更新會立即套用到下一次 Apple Speech contextual hints、自訂 language model 與本機分析。
-- 為維持目前 MVP 的無持久化架構，自訂內容只在本次開啟 App 期間保留；裝置端持久化列在後續 TODO。
+- 自訂內容會保存在使用者裝置；App 只記錄相對於內建詞庫的新增與移除差異，內建預設更新時仍能自然合併。
+- 可單獨還原目前語言，或一次還原中文與英文；執行前會以原生確認提示避免誤觸。
 
 ### 贅字雙軌辨識
 
@@ -112,9 +113,9 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 | 非同步流程 | Swift Concurrency、`async/await`、`Task` |
 | 錄音 | AVFoundation、`AVAudioEngine` |
 | 語音辨識 | Speech、`SFSpeechRecognizer` |
-| 資料來源 | 記憶體內模型與集中式 fixtures |
+| 資料來源 | 記憶體內模型、集中式 fixtures 與裝置端贅字庫偏好 |
 | 後端 | 無 |
-| 持久化 | 無 |
+| 持久化 | `UserDefaults`（僅保存自訂贅字庫差異） |
 
 ## 專案結構
 
@@ -122,7 +123,9 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 TalkFit/
 ├── TalkFitApp.swift            # App 進入點
 ├── ContentView.swift           # 錄音、報告、重練與比較流程
-├── HomeView.swift              # 雙語設定、推薦題目與動態贅字庫
+├── HomeView.swift              # 雙語設定、推薦題目與近期練習
+├── FillerLibraryView.swift     # 動態贅字庫編輯與還原確認介面
+├── FillerLibraryStore.swift    # 裝置端贅字庫差異式持久化
 ├── PracticeLanguage.swift      # 語言、題目、語速區間與 Speech segment models
 ├── PaceFeedbackViews.swift     # 錄音中及報告後的逐句語速元件
 ├── TalkFitModel.swift          # 單一狀態來源與完整練習流程
@@ -196,13 +199,15 @@ TalkFit/
 - 已確認返回按鈕至少保留 44pt 觸控區域，並提供 VoiceOver label／hint。
 - 已操作中文與英文示範流程，確認題目、逐字稿、贅字、語速單位、逐句建議、重練與比較會跟隨所選語言。
 - 已在英文贅字庫新增自訂詞並確認數量立即更新。
+- 已關閉並重新啟動 App，確認英文自訂贅字仍保留於裝置。
+- 已驗證單一語言還原，以及同時清除中英文自訂差異的「還原所有語言」流程與確認提示。
 - 主要畫面驗證證據位於 [`verification/`](verification/)；版面調整紀錄位於 [`verification/padding-audit/`](verification/padding-audit/)。
 
 ## 已知限制
 
 - 目前沒有帳號、雲端同步、後端服務或練習資料持久化。
 - 首頁的成長摘要與歷史項目是內建示範資料。
-- 自訂贅字庫目前只保留於記憶體，App 重新啟動後會回到預設內容。
+- 自訂贅字庫只保存在目前裝置，不會跨裝置同步。
 - Simulator 的麥克風與 Speech framework 行為可能依主機環境而異，正式裝置仍需重新確認權限與辨識品質。
 - Apple Speech 仍可能完全忽略非常短、音量較低或與前後字黏在一起的語氣聲；partial／候選證據、自訂 language model 與 contextual hints 能改善蒐集機會，但無法保證捕捉每一次贅字。
 - 自訂 Speech language model 是否生效取決於系統與裝置的 on-device recognition 支援狀況；不可用時會自動退回 contextual hints 與既有分析／示範備援。
@@ -222,4 +227,4 @@ TalkFit/
 
 ## 隱私
 
-目前版本沒有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
+目前版本沒有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
