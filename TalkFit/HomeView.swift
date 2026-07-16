@@ -20,7 +20,7 @@ struct HomeView: View {
             BottomActionBar {
                 VStack(spacing: 10) {
                     Button(action: startPractice) {
-                        Label("開始 \(model.selectedLanguage.displayName) 30 秒練習", systemImage: "mic.fill")
+                        Label(startButtonTitle, systemImage: "mic.fill")
                     }
                     .buttonStyle(PrimaryActionStyle())
                     .accessibilityIdentifier("home.start")
@@ -41,6 +41,11 @@ struct HomeView: View {
             case .practiceHistory:
                 PracticeHistoryView(model: model)
                     .presentationDetents([.large])
+            case .scriptPractice:
+                ScriptPracticeView(model: model) {
+                    presentedSheet = nil
+                }
+                .presentationDetents([.large])
             }
         }
     }
@@ -53,11 +58,16 @@ struct HomeView: View {
                     selectLanguage: model.selectLanguage
                 )
 
+                GardenContextSelector(
+                    selectedContext: model.selectedContext,
+                    selectContext: model.selectContext
+                )
+
                 Divider()
                     .overlay(TalkFitTheme.line)
 
                 HStack(alignment: .top) {
-                    Text(model.selectedLanguage.promptTitle)
+                    Text(model.activePromptTitle)
                         .font(.system(.title2, design: .serif, weight: .bold))
                         .layoutPriority(1)
                     Spacer()
@@ -68,15 +78,30 @@ struct HomeView: View {
                         .padding(.vertical, 6)
                         .background(TalkFitTheme.clay.opacity(0.12), in: Capsule())
                 }
-                Text(model.selectedLanguage.prompt)
+                Text(model.activePrompt)
                     .font(.body)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
+
+                let comfortablePace = model.selectedContext.comfortablePace(
+                    for: model.selectedLanguage
+                )
+                Label(
+                    "舒服語速 \(comfortablePace.lowerBound)–\(comfortablePace.upperBound) \(model.selectedLanguage.paceUnit)",
+                    systemImage: "metronome"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(TalkFitTheme.moss)
 
                 Rectangle()
                     .fill(TalkFitTheme.clay)
                     .frame(width: 58, height: 2)
                     .accessibilityHidden(true)
+
+                Divider()
+                    .overlay(TalkFitTheme.line)
+
+                scriptPracticeRow
 
                 Divider()
                     .overlay(TalkFitTheme.line)
@@ -121,6 +146,10 @@ struct HomeView: View {
         presentedSheet = .practiceHistory
     }
 
+    private func showScriptPractice() {
+        presentedSheet = .scriptPractice
+    }
+
     private func startPractice() {
         model.startPractice()
     }
@@ -128,11 +157,89 @@ struct HomeView: View {
     private func startDemo() {
         model.startPractice(demo: true)
     }
+
+    private var startButtonTitle: String {
+        if let session = model.scriptPractice,
+           let paragraph = session.selectedParagraph {
+            return "開始講稿第 \(paragraph.number) 段"
+        }
+        return model.selectedLanguage == .english
+            ? "開始 English・\(model.selectedContext.shortName)練習"
+            : "開始中文・\(model.selectedContext.shortName)練習"
+    }
+
+    @ViewBuilder
+    private var scriptPracticeRow: some View {
+        if let session = model.scriptPractice,
+           let paragraph = session.selectedParagraph {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "doc.text.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(TalkFitTheme.clay)
+                        .frame(width: 34, height: 34)
+                        .background(TalkFitTheme.clay.opacity(0.1), in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("講稿第 \(paragraph.number)／\(session.paragraphs.count) 段")
+                            .font(.subheadline.weight(.semibold))
+                        Text(paragraph.text)
+                            .font(.caption)
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                            .lineLimit(3)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 12) {
+                    Button("更換段落", action: showScriptPractice)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(TalkFitTheme.pine)
+                        .frame(minHeight: 44)
+                    Spacer()
+                    Button("改回情境題目", action: model.clearScriptPractice)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(TalkFitTheme.clay)
+                        .frame(minHeight: 44)
+                }
+            }
+            .accessibilityElement(children: .contain)
+        } else {
+            Button(action: showScriptPractice) {
+                HStack(spacing: 12) {
+                    Image(systemName: "doc.text")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(TalkFitTheme.clay)
+                        .frame(width: 34, height: 34)
+                        .background(TalkFitTheme.clay.opacity(0.1), in: Circle())
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("練自己的講稿")
+                            .font(.subheadline.weight(.semibold))
+                        Text("貼上內容，選一段比較實際說法")
+                            .font(.caption)
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(TalkFitTheme.sage)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("貼上講稿並選擇這次要練的段落")
+            .accessibilityIdentifier("home.script")
+        }
+    }
 }
 
 private enum HomeSheet: String, Identifiable {
     case fillerLibrary
     case practiceHistory
+    case scriptPractice
 
     var id: String { rawValue }
 }
@@ -210,12 +317,83 @@ private struct GardenLanguageSelector: View {
     }
 }
 
+private struct GardenContextSelector: View {
+    let selectedContext: PracticeContext
+    let selectContext: (PracticeContext) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("練習情境")
+                .font(.caption2.weight(.semibold))
+                .tracking(1.1)
+                .foregroundStyle(TalkFitTheme.moss)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(PracticeContext.allCases) { context in
+                        contextButton(for: context)
+                    }
+                }
+                .padding(.horizontal, 1)
+                .padding(.vertical, 2)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("練習情境")
+    }
+
+    private func contextButton(for context: PracticeContext) -> some View {
+        let isSelected = context == selectedContext
+        return Button {
+            selectContext(context)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: context.systemImage)
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+                Text(context.shortName)
+                    .font(.caption.weight(isSelected ? .bold : .semibold))
+            }
+            .foregroundStyle(isSelected ? TalkFitTheme.pine : TalkFitTheme.ink.opacity(0.62))
+            .padding(.horizontal, 12)
+            .frame(minHeight: 40)
+            .background(
+                isSelected
+                    ? TalkFitTheme.sageSoft.opacity(0.52)
+                    : TalkFitTheme.paperLight.opacity(0.34),
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(
+                        isSelected ? TalkFitTheme.moss.opacity(0.4) : TalkFitTheme.line,
+                        lineWidth: 1
+                    )
+            }
+            .overlay(alignment: .bottom) {
+                if isSelected {
+                    Circle()
+                        .fill(TalkFitTheme.clay)
+                        .frame(width: 4, height: 4)
+                        .padding(.bottom, 4)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("選擇\(context.displayName)")
+        .accessibilityValue(isSelected ? "已選取" : "未選取")
+        .accessibilityHint("切換題目、語速建議與歷史分組")
+        .accessibilityIdentifier("home.context.\(context.rawValue)")
+    }
+}
+
 private struct HomeIntroduction: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("今天，讓表達自然長出來")
                 .font(.system(.title2, design: .serif, weight: .semibold))
-            Text("選一種語言，用 30 秒練習說得更清楚。")
+            Text("選一個情境，或帶著自己的講稿練一小段。")
                 .font(.subheadline)
                 .foregroundStyle(TalkFitTheme.ink.opacity(0.65))
         }

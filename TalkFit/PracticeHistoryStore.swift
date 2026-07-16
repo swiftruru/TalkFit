@@ -61,6 +61,7 @@ struct PracticeHistorySummary: Identifiable, Equatable {
     let id: UUID
     let completedAt: Date
     let language: PracticeLanguage
+    let promptIdentifier: String
     let promptTitle: String
     let duration: TimeInterval
     let beforeFillerCount: Int
@@ -76,6 +77,7 @@ struct PracticeHistorySummary: Identifiable, Equatable {
         id = record.id
         completedAt = record.completedAt
         language = PracticeLanguage(rawValue: record.languageIdentifier) ?? .traditionalChinese
+        promptIdentifier = record.promptIdentifier
         promptTitle = record.promptTitle
         duration = record.duration
         beforeFillerCount = record.beforeFillerCount
@@ -86,6 +88,39 @@ struct PracticeHistorySummary: Identifiable, Equatable {
         afterStability = record.afterStability
         beforeRhythmIssueCount = record.beforeRhythmIssueCount
         afterRhythmIssueCount = record.afterRhythmIssueCount
+    }
+
+    init(
+        id: UUID = UUID(),
+        completedAt: Date,
+        language: PracticeLanguage,
+        promptIdentifier: String = "self-introduction-30",
+        promptTitle: String? = nil,
+        duration: TimeInterval = 48,
+        beforeFillerCount: Int,
+        afterFillerCount: Int,
+        beforePace: Int,
+        afterPace: Int,
+        beforeStability: Int,
+        afterStability: Int,
+        beforeRhythmIssueCount: Int = 0,
+        afterRhythmIssueCount: Int = 0
+    ) {
+        self.id = id
+        self.completedAt = completedAt
+        self.language = language
+        self.promptIdentifier = promptIdentifier
+        let context = PracticeContext(rawValue: promptIdentifier) ?? .selfIntroduction
+        self.promptTitle = promptTitle ?? context.promptTitle(for: language)
+        self.duration = duration
+        self.beforeFillerCount = beforeFillerCount
+        self.afterFillerCount = afterFillerCount
+        self.beforePace = beforePace
+        self.afterPace = afterPace
+        self.beforeStability = beforeStability
+        self.afterStability = afterStability
+        self.beforeRhythmIssueCount = beforeRhythmIssueCount
+        self.afterRhythmIssueCount = afterRhythmIssueCount
     }
 
     var fillerImprovement: Int {
@@ -169,7 +204,8 @@ final class PracticeHistoryStore {
         let record = PracticeHistoryRecord(
             completedAt: completedAt,
             language: before.language,
-            promptTitle: before.language.promptTitle,
+            promptIdentifier: before.historyPromptIdentifier,
+            promptTitle: before.historyPromptTitle,
             duration: before.duration + after.duration,
             beforeFillerCount: before.fillerTotal,
             afterFillerCount: after.fillerTotal,

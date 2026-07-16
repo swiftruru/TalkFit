@@ -51,6 +51,8 @@ final class AudioSpeechService {
 
     func start(
         language: PracticeLanguage,
+        context: PracticeContext,
+        referenceText: String? = nil,
         fillerWords: [String]
     ) async throws {
         let microphoneAllowed = await requestMicrophonePermission()
@@ -83,7 +85,14 @@ final class AudioSpeechService {
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
         request.taskHint = .unspecified
-        request.contextualStrings = language.recognitionHints(fillerWords: fillerWords)
+        let baseHints = language.recognitionHints(
+            fillerWords: fillerWords,
+            context: context
+        )
+        let scriptHints = referenceText.map {
+            ScriptPracticeAnalyzer.recognitionHints(from: $0, language: language)
+        } ?? []
+        request.contextualStrings = Array((baseHints + scriptHints).prefix(100))
         if recognizer.supportsOnDeviceRecognition {
             request.requiresOnDeviceRecognition = true
             request.customizedLanguageModel = preparedLanguageModel

@@ -47,6 +47,35 @@ struct PracticeHistoryStoreTests {
         #expect(fixture.store.fetchAll().isEmpty)
     }
 
+    @Test("歷史會保存練習情境作為趨勢分組鍵")
+    func savesPracticeContext() throws {
+        let fixture = try makeStore()
+        fixture.store.setPreference(.enabled)
+
+        #expect(fixture.store.save(comparison(source: .recognized, context: .presentation)))
+        let saved = try #require(fixture.store.fetchAll().first)
+
+        #expect(saved.promptIdentifier == PracticeContext.presentation.rawValue)
+        #expect(saved.promptTitle == PracticeContext.presentation.promptTitle(for: .traditionalChinese))
+    }
+
+    @Test("講稿練習只保存自訂講稿摘要，不保存原文")
+    func savesScriptSummaryWithoutScriptText() throws {
+        let fixture = try makeStore()
+        fixture.store.setPreference(.enabled)
+        let privateScript = "這是一段不應寫進歷史資料庫的私人講稿。"
+
+        #expect(fixture.store.save(comparison(
+            source: .recognized,
+            scriptText: privateScript
+        )))
+        let saved = try #require(fixture.store.fetchAll().first)
+
+        #expect(saved.promptIdentifier == "custom-script")
+        #expect(saved.promptTitle == "自訂講稿")
+        #expect(saved.promptTitle != privateScript)
+    }
+
     @Test("關閉保存只停止新增，不會刪除既有紀錄")
     func disablingKeepsExistingHistory() throws {
         let fixture = try makeStore()
@@ -101,13 +130,19 @@ struct PracticeHistoryStoreTests {
         )
     }
 
-    private func comparison(source: ResultSource) -> TalkFit.ComparisonResult {
+    private func comparison(
+        source: ResultSource,
+        context: PracticeContext = .selfIntroduction,
+        scriptText: String? = nil
+    ) -> TalkFit.ComparisonResult {
         TalkFit.ComparisonResult(
             before: result(
                 transcript: "大家好，嗯，我最近在做產品，然後想把它介紹清楚。",
                 fillerCounts: ["嗯": 1, "然後": 2],
                 pace: 260,
                 stability: 58,
+                context: context,
+                scriptText: scriptText,
                 source: source
             ),
             after: result(
@@ -115,6 +150,8 @@ struct PracticeHistoryStoreTests {
                 fillerCounts: ["然後": 1],
                 pace: 205,
                 stability: 82,
+                context: context,
+                scriptText: scriptText,
                 source: source
             )
         )
@@ -125,6 +162,8 @@ struct PracticeHistoryStoreTests {
         fillerCounts: [String: Int],
         pace: Int,
         stability: Int,
+        context: PracticeContext,
+        scriptText: String? = nil,
         source: ResultSource
     ) -> PracticeResult {
         PracticeResult(
@@ -134,6 +173,10 @@ struct PracticeHistoryStoreTests {
             fillerEvidence: [],
             fillerWords: PracticeLanguage.traditionalChinese.defaultFillerWords,
             language: .traditionalChinese,
+            context: context,
+            scriptReference: scriptText.map {
+                ScriptPracticeReference(text: $0, paragraphNumber: 1, paragraphCount: 1)
+            },
             sentencePaces: [],
             pace: pace,
             stability: stability,

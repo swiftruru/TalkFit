@@ -140,6 +140,7 @@ private struct SentencePaceRow: View {
 struct PaceScale: View {
     let pace: Int
     let language: PracticeLanguage
+    let context: PracticeContext
 
     var body: some View {
         GeometryReader { geometry in
@@ -148,12 +149,22 @@ struct PaceScale: View {
                 1,
                 max(0, CGFloat(pace - bounds.lowerBound) / CGFloat(bounds.upperBound - bounds.lowerBound))
             )
+            let comfortablePace = context.comfortablePace(for: language)
+            let comfortableStart = min(
+                1,
+                max(0, CGFloat(comfortablePace.lowerBound - bounds.lowerBound) / CGFloat(bounds.upperBound - bounds.lowerBound))
+            )
+            let comfortableEnd = min(
+                1,
+                max(0, CGFloat(comfortablePace.upperBound - bounds.lowerBound) / CGFloat(bounds.upperBound - bounds.lowerBound))
+            )
             ZStack(alignment: .leading) {
-                Capsule().fill(TalkFitTheme.sageSoft.opacity(0.72)).frame(height: 10)
-                Capsule().fill(TalkFitTheme.moss).frame(
-                    width: max(12, geometry.size.width * progress),
+                Capsule().fill(TalkFitTheme.line).frame(height: 6)
+                Capsule().fill(TalkFitTheme.sageSoft.opacity(0.88)).frame(
+                    width: max(12, geometry.size.width * (comfortableEnd - comfortableStart)),
                     height: 10
                 )
+                .offset(x: geometry.size.width * comfortableStart)
                 Circle()
                     .fill(TalkFitTheme.clay)
                     .frame(width: 18, height: 18)
@@ -161,6 +172,8 @@ struct PaceScale: View {
             }
         }
         .frame(height: 18)
-        .accessibilityLabel("語速 \(pace) \(language.paceUnit)")
+        .accessibilityLabel(
+            "\(context.displayName)語速 \(pace) \(language.paceUnit)，舒服區間 \(context.comfortablePace(for: language).lowerBound) 到 \(context.comfortablePace(for: language).upperBound)"
+        )
     }
 }

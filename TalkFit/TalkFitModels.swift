@@ -84,6 +84,9 @@ struct PracticeResult: Equatable {
     let fillerEvidence: [FillerEvidence]
     let fillerWords: [String]
     let language: PracticeLanguage
+    let context: PracticeContext
+    let scriptReference: ScriptPracticeReference?
+    let scriptComparison: ScriptSpeechComparison?
     let sentencePaces: [SentencePaceFeedback]
     let pace: Int
     let stability: Int
@@ -91,7 +94,53 @@ struct PracticeResult: Equatable {
     let coachingCue: String
     let source: ResultSource
 
+    init(
+        transcript: String,
+        duration: TimeInterval,
+        fillerCounts: [String: Int],
+        fillerEvidence: [FillerEvidence],
+        fillerWords: [String],
+        language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction,
+        scriptReference: ScriptPracticeReference? = nil,
+        scriptComparison: ScriptSpeechComparison? = nil,
+        sentencePaces: [SentencePaceFeedback],
+        pace: Int,
+        stability: Int,
+        prioritySegment: String,
+        coachingCue: String,
+        source: ResultSource
+    ) {
+        self.transcript = transcript
+        self.duration = duration
+        self.fillerCounts = fillerCounts
+        self.fillerEvidence = fillerEvidence
+        self.fillerWords = fillerWords
+        self.language = language
+        self.context = context
+        self.scriptReference = scriptReference
+        self.scriptComparison = scriptComparison
+        self.sentencePaces = sentencePaces
+        self.pace = pace
+        self.stability = stability
+        self.prioritySegment = prioritySegment
+        self.coachingCue = coachingCue
+        self.source = source
+    }
+
     var fillerTotal: Int { fillerCounts.values.reduce(0, +) }
+
+    var practiceTitle: String {
+        scriptReference?.title ?? context.displayName
+    }
+
+    var historyPromptIdentifier: String {
+        scriptReference == nil ? context.rawValue : "custom-script"
+    }
+
+    var historyPromptTitle: String {
+        scriptReference == nil ? context.promptTitle(for: language) : "自訂講稿"
+    }
 
     var additionalFillerEvidence: [FillerEvidence] {
         var visibleCounts = TalkFitAnalyzer.fillerCounts(
@@ -111,7 +160,7 @@ struct PracticeResult: Equatable {
     }
 
     var paceLabel: String {
-        language.paceState(for: pace).label
+        context.paceState(for: pace, language: language).label
     }
 
     var paceUnit: String { language.paceUnit }
@@ -165,11 +214,10 @@ enum TalkFitFixtures {
     static func sampleCapture(
         for round: PracticeRound,
         language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction,
         fillerWords: [String]
     ) -> SpeechCapture {
-        let evidenceTranscript = round == .first
-            ? language.sampleFirstTranscript
-            : language.sampleRetryTranscript
+        let evidenceTranscript = context.sampleTranscript(for: round, language: language)
         let readableTranscript: String
         if round == .first, language == .traditionalChinese {
             readableTranscript = evidenceTranscript.replacingOccurrences(of: "嗯，", with: "")
@@ -194,6 +242,48 @@ enum TalkFitFixtures {
             ),
             segments: TalkFitAnalyzer.sampleSegments(
                 in: readableTranscript,
+                duration: duration,
+                language: language,
+                round: round
+            ),
+            source: .sample
+        )
+    }
+
+    static func scriptCapture(
+        for round: PracticeRound,
+        language: PracticeLanguage,
+        script: String,
+        fillerWords: [String]
+    ) -> SpeechCapture {
+        let trimmedScript = script.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanScript = round == .retry
+            ? TalkFitAnalyzer.removingFillers(
+                from: trimmedScript,
+                fillerWords: fillerWords,
+                language: language
+            )
+            : trimmedScript
+        let evidenceTranscript: String
+        if round == .first {
+            evidenceTranscript = language == .traditionalChinese
+                ? "嗯，\(cleanScript)"
+                : "Um, \(cleanScript)"
+        } else {
+            evidenceTranscript = cleanScript
+        }
+        let duration: TimeInterval = round == .first ? 31 : 22
+        return SpeechCapture(
+            readableTranscript: cleanScript,
+            analysisTranscript: evidenceTranscript,
+            fillerEvidence: TalkFitAnalyzer.sampleEvidence(
+                in: evidenceTranscript,
+                duration: duration,
+                fillerWords: fillerWords,
+                language: language
+            ),
+            segments: TalkFitAnalyzer.sampleSegments(
+                in: cleanScript,
                 duration: duration,
                 language: language,
                 round: round

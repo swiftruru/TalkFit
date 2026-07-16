@@ -21,19 +21,11 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
     }
 
     var promptTitle: String {
-        switch self {
-        case .traditionalChinese: "30 秒自我介紹"
-        case .english: "30-second introduction"
-        }
+        PracticeContext.selfIntroduction.promptTitle(for: self)
     }
 
     var prompt: String {
-        switch self {
-        case .traditionalChinese:
-            "介紹你是誰、最近在做什麼，以及一件你想讓別人記住的事。"
-        case .english:
-            "Introduce who you are, what you are working on, and one thing you want people to remember."
-        }
+        PracticeContext.selfIntroduction.prompt(for: self)
     }
 
     var defaultFillerWords: [String] {
@@ -46,21 +38,11 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
     }
 
     var sampleFirstTranscript: String {
-        switch self {
-        case .traditionalChinese:
-            "大家好，我是小安，目前在台北學習產品設計。嗯，我最近和同學一起做校園服務的專題，然後也開始練習把想法說得更清楚。其實我很喜歡觀察生活裡的小細節，就是希望未來能做出讓人感到貼心、又真正解決問題的產品。"
-        case .english:
-            "Hi, I'm Mia, a product design student in Taipei. Um, I'm learning how to turn everyday observations into clear product ideas, and I also practice presenting those ideas with confidence. Actually, I care about making technology feel calm and thoughtful. In the future, I hope to build products that help people finish important tasks without feeling overwhelmed."
-        }
+        PracticeContext.selfIntroduction.sampleTranscript(for: .first, language: self)
     }
 
     var sampleRetryTranscript: String {
-        switch self {
-        case .traditionalChinese:
-            "大家好，我是小安，目前在台北學習產品設計。我最近和同學一起做校園服務的專題，也練習把想法說得更清楚。我喜歡觀察生活裡的小細節，希望未來能做出貼心、又真正解決問題的產品。"
-        case .english:
-            "Hi, I'm Mia, a product design student in Taipei. I'm learning to turn everyday observations into clear product ideas and present them with confidence. I care about calm, thoughtful technology, and I hope to build products that help people finish important tasks without feeling overwhelmed."
-        }
+        PracticeContext.selfIntroduction.sampleTranscript(for: .retry, language: self)
     }
 
     var paceUnit: String {
@@ -127,18 +109,19 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
     }
 
     func paceState(for pace: Int) -> PaceState {
-        if pace < comfortablePace.lowerBound { return .slow }
-        if pace > comfortablePace.upperBound { return .fast }
-        return .steady
+        PracticeContext.selfIntroduction.paceState(for: pace, language: self)
     }
 
-    func recognitionHints(fillerWords: [String]) -> [String] {
+    func recognitionHints(
+        fillerWords: [String],
+        context: PracticeContext = .selfIntroduction
+    ) -> [String] {
         let phrases: [String]
         switch self {
         case .traditionalChinese:
-            phrases = fillerWords + ["嗯，我", "呃，我想", "然後我", "就是說", promptTitle]
+            phrases = fillerWords + ["嗯，我", "呃，我想", "然後我", "就是說", context.recognitionHint(for: self)]
         case .english:
-            phrases = fillerWords + ["um I", "uh I think", "you know", "I mean", promptTitle]
+            phrases = fillerWords + ["um I", "uh I think", "you know", "I mean", context.recognitionHint(for: self)]
         }
         return Array(phrases.reduce(into: [String]()) { result, phrase in
             if !result.contains(phrase) { result.append(phrase) }
@@ -225,6 +208,7 @@ struct SentencePaceFeedback: Identifiable, Equatable {
     let text: String
     let pace: Int
     let state: PaceState
+    let context: PracticeContext
     let pauseAfter: TimeInterval?
     let pauseState: SentencePauseState?
     let paceChange: Int?
@@ -235,6 +219,7 @@ struct SentencePaceFeedback: Identifiable, Equatable {
         text: String,
         pace: Int,
         state: PaceState,
+        context: PracticeContext = .selfIntroduction,
         pauseAfter: TimeInterval? = nil,
         pauseState: SentencePauseState? = nil,
         paceChange: Int? = nil,
@@ -244,6 +229,7 @@ struct SentencePaceFeedback: Identifiable, Equatable {
         self.text = text
         self.pace = pace
         self.state = state
+        self.context = context
         self.pauseAfter = pauseAfter
         self.pauseState = pauseState
         self.paceChange = paceChange
@@ -257,7 +243,7 @@ struct SentencePaceFeedback: Identifiable, Equatable {
         if let pauseState, pauseState != .balanced {
             return pauseState.suggestion
         }
-        return state.suggestion
+        return context.paceSuggestion(for: state)
     }
 
     var pauseDurationLabel: String? {

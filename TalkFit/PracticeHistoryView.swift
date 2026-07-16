@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct PracticeHistoryView: View {
     let model: TalkFitModel
@@ -14,6 +15,7 @@ struct PracticeHistoryView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: TalkFitTheme.sectionSpacing) {
                         privacySection
+                        trendSection
                         historySection
                     }
                     .talkFitPageInsets(bottom: 30)
@@ -49,6 +51,22 @@ struct PracticeHistoryView: View {
         } message: {
             Text("所有保存在這台 iPhone 的練習摘要都會被刪除，且無法復原。")
         }
+    }
+
+    private var trendSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("慢慢長出的趨勢")
+                .font(.headline)
+
+            if model.practiceTrends.isEmpty {
+                TrendAccumulationView(progress: model.trendProgress)
+            } else {
+                ForEach(model.practiceTrends) { trend in
+                    PracticeTrendCard(trend: trend)
+                }
+            }
+        }
+        .accessibilityIdentifier("history.trends")
     }
 
     private var privacySection: some View {
@@ -199,5 +217,204 @@ struct PracticeHistoryView: View {
                 if !isPresented { recordToDelete = nil }
             }
         )
+    }
+}
+
+private struct TrendAccumulationView: View {
+    let progress: PracticeTrendProgress?
+
+    private var completedCount: Int { progress?.count ?? 0 }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            HStack(spacing: 5) {
+                ForEach(0..<PracticeTrend.minimumPracticeCount, id: \.self) { index in
+                    Image(systemName: index < completedCount ? "leaf.fill" : "leaf")
+                        .foregroundStyle(index < completedCount ? TalkFitTheme.moss : TalkFitTheme.sage)
+                }
+            }
+            .font(.caption)
+            .padding(.top, 2)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            TalkFitTheme.sageSoft.opacity(0.28),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var title: String {
+        guard let progress else { return "完成 3 次，看見變化" }
+        return "再 \(progress.remainingCount) 次，就能看見趨勢"
+    }
+
+    private var message: String {
+        guard let progress else {
+            return "相同題目與語言累積 3 次後，才會整理贅字、語速與穩定度的長期變化。"
+        }
+        return "\(progress.language.displayName) · \(progress.promptTitle)，目前已累積 \(progress.count) 次。"
+    }
+
+    private var accessibilityLabel: String {
+        guard let progress else { return "成長趨勢尚未開始，需要三次相同練習" }
+        return "\(progress.promptTitle)已累積 \(progress.count) 次，再 \(progress.remainingCount) 次顯示趨勢"
+    }
+}
+
+private struct PracticeTrendCard: View {
+    let trend: PracticeTrend
+
+    var body: some View {
+        NotebookSection(title: "\(trend.language.displayName) · 最近 \(trend.points.count) 次") {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(trend.promptTitle)
+                        .font(.body.weight(.semibold))
+                    Text(trend.priorityMessage)
+                        .font(.caption)
+                        .foregroundStyle(TalkFitTheme.moss)
+                }
+
+                TrendMetricChart(
+                    title: "贅字",
+                    latestValue: "\(trend.latest.fillerCount) 個",
+                    changeLabel: trend.fillerChangeLabel,
+                    values: trend.points.map(\.fillerCount),
+                    color: TalkFitTheme.clay,
+                    highlightsImprovement: trend.fillerChange < 0
+                )
+
+                Divider().overlay(TalkFitTheme.line)
+
+                TrendMetricChart(
+                    title: "語速",
+                    latestValue: "\(trend.latest.pace) \(trend.language.paceUnit)",
+                    changeLabel: trend.paceChangeLabel,
+                    values: trend.points.map(\.pace),
+                    color: TalkFitTheme.sage,
+                    highlightsImprovement: trend.paceDistanceImprovement > 0
+                        || trend.language.paceState(for: trend.latest.pace) == .steady,
+                    comfortableRange: trend.context.comfortablePace(for: trend.language)
+                )
+
+                Divider().overlay(TalkFitTheme.line)
+
+                TrendMetricChart(
+                    title: "穩定度",
+                    latestValue: "\(trend.latest.stability)%",
+                    changeLabel: trend.stabilityChangeLabel,
+                    values: trend.points.map(\.stability),
+                    color: TalkFitTheme.moss,
+                    highlightsImprovement: trend.stabilityChange > 0
+                )
+
+                HStack {
+                    Text(shortDate(trend.earliest.completedAt))
+                    Spacer()
+                    Text(shortDate(trend.latest.completedAt))
+                }
+                .font(.caption2)
+                .foregroundStyle(TalkFitTheme.ink.opacity(0.48))
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(trend.accessibilitySummary)
+        .accessibilityIdentifier("history.trend.\(trend.id)")
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        date.formatted(
+            Date.FormatStyle(date: .abbreviated, time: .omitted)
+                .locale(Locale(identifier: "zh-Hant-TW"))
+        )
+    }
+}
+
+private struct TrendMetricChart: View {
+    let title: String
+    let latestValue: String
+    let changeLabel: String
+    let values: [Int]
+    let color: Color
+    let highlightsImprovement: Bool
+    var comfortableRange: ClosedRange<Int>?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                Text(latestValue)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(TalkFitTheme.pine)
+                Spacer(minLength: 8)
+                Text(changeLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(changeColor)
+            }
+
+            Chart {
+                if let comfortableRange {
+                    RuleMark(y: .value("舒服下限", comfortableRange.lowerBound))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .foregroundStyle(TalkFitTheme.sage.opacity(0.35))
+                    RuleMark(y: .value("舒服上限", comfortableRange.upperBound))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .foregroundStyle(TalkFitTheme.sage.opacity(0.35))
+                }
+
+                ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                    LineMark(
+                        x: .value("第幾次", index + 1),
+                        y: .value(title, value)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(color)
+                    .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round))
+
+                    PointMark(
+                        x: .value("第幾次", index + 1),
+                        y: .value(title, value)
+                    )
+                    .symbolSize(index == values.count - 1 ? 44 : 24)
+                    .foregroundStyle(index == values.count - 1 ? TalkFitTheme.clay : color)
+                }
+            }
+            .chartXAxis(.hidden)
+            .chartYAxis(.hidden)
+            .chartYScale(domain: chartDomain)
+            .frame(height: 54)
+            .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)，目前 \(latestValue)，相較第一次 \(changeLabel)")
+    }
+
+    private var chartDomain: ClosedRange<Int> {
+        var bounds = values
+        if let comfortableRange {
+            bounds.append(contentsOf: [comfortableRange.lowerBound, comfortableRange.upperBound])
+        }
+        let minimum = bounds.min() ?? 0
+        let maximum = bounds.max() ?? 1
+        let padding = max(2, (maximum - minimum) / 5)
+        return max(0, minimum - padding)...max(minimum + 1, maximum + padding)
+    }
+
+    private var changeColor: Color {
+        highlightsImprovement ? TalkFitTheme.moss : TalkFitTheme.ink.opacity(0.58)
     }
 }

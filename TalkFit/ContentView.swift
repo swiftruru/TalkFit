@@ -113,7 +113,9 @@ private struct RecordingView: View {
             }
 
             NotebookSection(title: round == .first ? "題目" : "這次只練一句") {
-                Text(round == .first ? model.selectedLanguage.prompt : (model.firstResult?.prioritySegment ?? ""))
+                Text(round == .first
+                     ? model.activePrompt
+                     : (model.firstResult?.prioritySegment ?? ""))
                     .font(.body.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -264,7 +266,7 @@ private struct ReportView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(result.source.label)
+                    Text("\(result.practiceTitle) · \(result.source.label)")
                         .font(.caption.weight(.semibold))
                         .tracking(1.2)
                         .foregroundStyle(TalkFitTheme.moss)
@@ -296,6 +298,10 @@ private struct ReportView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("report.retry")
+                }
+
+                if let scriptComparison = result.scriptComparison {
+                    ScriptComparisonSection(comparison: scriptComparison)
                 }
 
                 NotebookSection(title: "逐字稿 · 橘色是文字中的贅字") {
@@ -347,7 +353,11 @@ private struct ReportView: View {
                                 .font(.caption)
                                 .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
                         }
-                        PaceScale(pace: result.pace, language: result.language)
+                        PaceScale(
+                            pace: result.pace,
+                            language: result.language,
+                            context: result.context
+                        )
                         RhythmSummaryNote(summary: result.rhythmSummary)
                         Text("贅字 \(result.fillerTotal) 個 · 穩定度 \(result.stability)%")
                             .font(.caption)
@@ -375,6 +385,67 @@ private struct ReportView: View {
                 .accessibilityIdentifier("report.retry.bottom")
             }
         }
+    }
+}
+
+private struct ScriptComparisonSection: View {
+    let comparison: ScriptSpeechComparison
+
+    var body: some View {
+        NotebookSection(title: "講稿對照 · 不要求逐字背誦") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("內容涵蓋")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.moss)
+                        Text("\(comparison.coverage)%")
+                            .font(.system(.title, design: .rounded, weight: .bold))
+                            .foregroundStyle(TalkFitTheme.pine)
+                    }
+                    Spacer()
+                    Image(systemName: comparison.coverage >= 85 ? "leaf.fill" : "leaf")
+                        .font(.title2)
+                        .foregroundStyle(TalkFitTheme.sage)
+                        .accessibilityHidden(true)
+                }
+
+                ProgressView(value: Double(comparison.coverage), total: 100)
+                    .tint(TalkFitTheme.moss)
+                    .accessibilityLabel("講稿內容涵蓋百分比")
+                    .accessibilityValue("\(comparison.coverage)%")
+
+                Text(comparison.summary)
+                    .font(.subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !comparison.missingKeywords.isEmpty {
+                    Divider().overlay(TalkFitTheme.line)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("可以補回的關鍵詞")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                        ForEach(comparison.missingKeywords, id: \.self) { keyword in
+                            Label(keyword, systemImage: "plus.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(TalkFitTheme.clay)
+                        }
+                    }
+                }
+
+                DisclosureGroup("查看這次的講稿段落") {
+                    Text(comparison.reference)
+                        .font(.footnote)
+                        .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
+                        .lineSpacing(4)
+                        .padding(.top, 8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption.weight(.semibold))
+                .tint(TalkFitTheme.moss)
+            }
+        }
+        .accessibilityIdentifier("report.script-comparison")
     }
 }
 

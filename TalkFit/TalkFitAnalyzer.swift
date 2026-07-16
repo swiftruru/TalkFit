@@ -6,23 +6,44 @@ enum TalkFitAnalyzer {
         duration: TimeInterval,
         round: PracticeRound,
         language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction,
+        scriptReference: ScriptPracticeReference? = nil,
         fillerWords: [String]
     ) -> PracticeResult {
         let trimmed = capture.readableTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         let isUsable = capture.source == .sample
             || language.speechUnitCount(in: trimmed) >= language.minimumUsableUnits
-        let effectiveCapture = isUsable
-            ? capture
-            : TalkFitFixtures.sampleCapture(
+        let effectiveCapture: SpeechCapture
+        if isUsable {
+            effectiveCapture = capture
+        } else if let scriptReference {
+            effectiveCapture = TalkFitFixtures.scriptCapture(
                 for: round,
                 language: language,
+                script: scriptReference.text,
                 fillerWords: fillerWords
             )
+        } else {
+            effectiveCapture = TalkFitFixtures.sampleCapture(
+                for: round,
+                language: language,
+                context: context,
+                fillerWords: fillerWords
+            )
+        }
         let transcript = effectiveCapture.readableTranscript
         let source = effectiveCapture.source
-        let effectiveDuration = source == .sample
-            ? (round == .first ? 31 : 22)
-            : max(duration, 4)
+        let effectiveDuration: TimeInterval
+        if source == .sample, scriptReference != nil {
+            let units = max(1, language.speechUnitCount(in: transcript))
+            let comfortablePace = context.comfortablePace(for: language)
+            let targetPace = max(1, (comfortablePace.lowerBound + comfortablePace.upperBound) / 2)
+            effectiveDuration = Double(units) / Double(targetPace) * 60
+        } else if source == .sample {
+            effectiveDuration = round == .first ? 31 : 22
+        } else {
+            effectiveDuration = max(duration, 4)
+        }
 
         let visibleCounts = fillerCounts(
             in: transcript,
@@ -40,11 +61,13 @@ enum TalkFitAnalyzer {
         let sentencePaces = sentencePaceFeedback(
             capture: effectiveCapture,
             duration: effectiveDuration,
-            language: language
+            language: language,
+            context: context
         )
         let rhythmSummary = RhythmSummary(feedback: sentencePaces)
-        let target = (language.comfortablePace.lowerBound + language.comfortablePace.upperBound) / 2
-        let rangeWidth = max(1, language.comfortablePace.upperBound - language.comfortablePace.lowerBound)
+        let comfortablePace = context.comfortablePace(for: language)
+        let target = (comfortablePace.lowerBound + comfortablePace.upperBound) / 2
+        let rangeWidth = max(1, comfortablePace.upperBound - comfortablePace.lowerBound)
         let pacePenalty = abs(pace - target) * 18 / rangeWidth
         let rhythmPenalty = rhythmSummary.shortPauseCount * 3
             + rhythmSummary.longPauseCount * 4
@@ -71,6 +94,15 @@ enum TalkFitAnalyzer {
             fillerEvidence: effectiveCapture.fillerEvidence.sorted { $0.timestamp < $1.timestamp },
             fillerWords: fillerWords,
             language: language,
+            context: context,
+            scriptReference: scriptReference,
+            scriptComparison: scriptReference.map {
+                ScriptPracticeAnalyzer.compare(
+                    reference: $0.text,
+                    spoken: transcript,
+                    language: language
+                )
+            },
             sentencePaces: sentencePaces,
             pace: pace,
             stability: stability,
@@ -118,6 +150,28 @@ enum TalkFitAnalyzer {
         return expression.matches(in: text, range: fullRange).compactMap { match in
             Range(match.range, in: text)
         }
+    }
+
+    static func removingFillers(
+        from text: String,
+        fillerWords: [String],
+        language: PracticeLanguage
+    ) -> String {
+        var result = text
+        for filler in fillerWords {
+            let matches = ranges(of: filler, in: result, language: language)
+            for range in matches.reversed() {
+                result.removeSubrange(range)
+            }
+        }
+        result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        let leadingTrimSet = CharacterSet.whitespacesAndNewlines
+            .union(.punctuationCharacters)
+        while let scalar = result.unicodeScalars.first,
+              leadingTrimSet.contains(scalar) {
+            result.removeFirst()
+        }
+        return result.replacingOccurrences(of: "  ", with: " ")
     }
 
     static func sampleEvidence(
@@ -182,7 +236,8 @@ enum TalkFitAnalyzer {
     static func sentencePaceFeedback(
         capture: SpeechCapture,
         duration: TimeInterval,
-        language: PracticeLanguage
+        language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction
     ) -> [SentencePaceFeedback] {
         let sentences = TranscriptSentenceSegmenter.timedSentences(
             capture: capture,
@@ -212,7 +267,8 @@ enum TalkFitAnalyzer {
             return SentencePaceFeedback(
                 text: sentence.text,
                 pace: pace,
-                state: language.paceState(for: pace),
+                state: context.paceState(for: pace, language: language),
+                context: context,
                 pauseAfter: sentence.pauseAfter,
                 pauseState: classifiedPauseState,
                 paceChange: paceChange,
