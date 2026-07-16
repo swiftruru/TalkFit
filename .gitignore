@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Xcode build products
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/xcuserdata/
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Dependency managers (not currently used)
+Pods/
+Carthage/Build/
+
+# Local environment and signing material
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+GoogleService-Info.plist
+
+# Local logs and temporary files
+*.log
+*.tmp
+*.swp
+*~
+
+# Large local visual QA composites; lightweight flow evidence is kept
+/verification/*.png
