@@ -9,10 +9,15 @@ enum FillerLanguageModel {
     )
 
     nonisolated static func prepare(
+        localeIdentifier: String,
         phrases: [(phrase: String, count: Int)]
     ) async -> SFSpeechLanguageModel.Configuration? {
+        let signature = stableSignature(for: phrases.map(\.phrase))
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("TalkFitFillerLanguageModel-v1", isDirectory: true)
+            .appendingPathComponent(
+                "TalkFitFillerLanguageModel-\(localeIdentifier)-\(signature)",
+                isDirectory: true
+            )
         let trainingDataURL = directory.appendingPathComponent("training-data.bin")
         let languageModelURL = directory.appendingPathComponent("language-model.bin")
         let vocabularyURL = directory.appendingPathComponent("vocabulary.bin")
@@ -31,9 +36,9 @@ enum FillerLanguageModel {
             }
 
             let data = SFCustomLanguageModelData(
-                locale: Locale(identifier: "zh-TW"),
-                identifier: "com.ru.TalkFit.fillers",
-                version: "1"
+                locale: Locale(identifier: localeIdentifier),
+                identifier: "com.ru.TalkFit.fillers.\(localeIdentifier)",
+                version: signature
             )
             for item in phrases {
                 data.insert(
@@ -68,5 +73,13 @@ enum FillerLanguageModel {
             logger.error("準備贅字語言模型失敗：\(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    nonisolated private static func stableSignature(for phrases: [String]) -> String {
+        var checksum: UInt64 = 5381
+        for scalar in phrases.joined(separator: "|").unicodeScalars {
+            checksum = (checksum &* 33) &+ UInt64(scalar.value)
+        }
+        return String(checksum, radix: 16)
     }
 }

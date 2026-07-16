@@ -42,124 +42,6 @@ struct ContentView: View {
     }
 }
 
-private struct HomeView: View {
-    let model: TalkFitModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TalkFitTheme.sectionSpacing) {
-                BrandHeader()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("今天，讓表達自然長出來")
-                        .font(.system(.title2, design: .serif, weight: .semibold))
-                    Text("用 30 秒，練習說得更清楚一點。")
-                        .font(.subheadline)
-                        .foregroundStyle(TalkFitTheme.ink.opacity(0.65))
-                }
-
-                growthStrip
-                promptSheet
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("最近的練習")
-                        .font(.headline)
-                    ForEach(TalkFitFixtures.history) { item in
-                        HStack(spacing: 12) {
-                            Image(systemName: "leaf")
-                                .foregroundStyle(TalkFitTheme.sage)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title).font(.subheadline.weight(.semibold))
-                                Text(item.note).font(.caption).foregroundStyle(TalkFitTheme.moss)
-                            }
-                            Spacer()
-                            Text(item.date).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.48))
-                        }
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 4)
-                        if item.id != TalkFitFixtures.history.last?.id {
-                            Divider().overlay(TalkFitTheme.line)
-                        }
-                    }
-                }
-            }
-            .talkFitPageInsets(bottom: 132)
-        }
-        .safeAreaInset(edge: .bottom) {
-            BottomActionBar {
-                VStack(spacing: 10) {
-                    Button {
-                        model.startPractice()
-                    } label: {
-                        Label("開始 30 秒練習", systemImage: "mic.fill")
-                    }
-                    .buttonStyle(PrimaryActionStyle())
-                    .accessibilityIdentifier("home.start")
-
-                    Button("示範練習") {
-                        model.startPractice(demo: true)
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(TalkFitTheme.moss)
-                    .accessibilityHint("不使用麥克風，以固定內容體驗完整流程")
-                    .accessibilityIdentifier("home.demo")
-                }
-            }
-        }
-    }
-
-    private var growthStrip: some View {
-        HStack(spacing: 0) {
-            growthItem(value: "−35%", label: "贅字")
-            Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            growthItem(value: "更穩", label: "語速")
-            Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            growthItem(value: "3 次", label: "已練習")
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 14)
-        .background(TalkFitTheme.sageSoft.opacity(0.45), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("成長摘要：贅字減少百分之三十五，語速更穩，已完成三次練習")
-    }
-
-    private func growthItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.headline).foregroundStyle(TalkFitTheme.pine)
-            Text(label).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.62))
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var promptSheet: some View {
-        NotebookSection(title: "今日推薦") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    Text(TalkFitFixtures.promptTitle)
-                        .font(.system(.title2, design: .serif, weight: .bold))
-                        .layoutPriority(1)
-                    Spacer()
-                    Text("30 秒")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(TalkFitTheme.clay)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(TalkFitTheme.clay.opacity(0.12), in: Capsule())
-                }
-                Text(TalkFitFixtures.prompt)
-                    .font(.body)
-                    .foregroundStyle(TalkFitTheme.ink.opacity(0.75))
-                    .fixedSize(horizontal: false, vertical: true)
-                Rectangle()
-                    .fill(TalkFitTheme.clay)
-                    .frame(width: 66, height: 2)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-}
-
 private struct RecordingView: View {
     let model: TalkFitModel
     let round: PracticeRound
@@ -223,8 +105,15 @@ private struct RecordingView: View {
                 .accessibilityLabel("已捕捉 \(model.liveFillerEvidence.count) 個可能的贅字")
             }
 
+            if let latestPace = model.liveSentencePaces.last {
+                LivePaceNote(
+                    feedback: latestPace,
+                    language: model.selectedLanguage
+                )
+            }
+
             NotebookSection(title: round == .first ? "題目" : "這次只練一句") {
-                Text(round == .first ? TalkFitFixtures.prompt : (model.firstResult?.prioritySegment ?? ""))
+                Text(round == .first ? model.selectedLanguage.prompt : (model.firstResult?.prioritySegment ?? ""))
                     .font(.body.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -450,7 +339,7 @@ private struct ReportView: View {
                         HStack(alignment: .firstTextBaseline) {
                             Text("\(result.pace)")
                                 .font(.system(.title, design: .rounded, weight: .bold))
-                            Text("字／分鐘 · \(result.paceLabel)")
+                            Text("\(result.paceUnit) · \(result.paceLabel)")
                                 .font(.subheadline)
                                 .foregroundStyle(TalkFitTheme.moss)
                             Spacer()
@@ -458,10 +347,19 @@ private struct ReportView: View {
                                 .font(.caption)
                                 .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
                         }
-                        PaceScale(pace: result.pace)
+                        PaceScale(pace: result.pace, language: result.language)
                         Text("贅字 \(result.fillerTotal) 個 · 穩定度 \(result.stability)%")
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                    }
+                }
+
+                if !result.sentencePaces.isEmpty {
+                    NotebookSection(title: "逐句語速建議") {
+                        SentencePaceList(
+                            feedback: result.sentencePaces,
+                            language: result.language
+                        )
                     }
                 }
             }
@@ -476,26 +374,6 @@ private struct ReportView: View {
                 .accessibilityIdentifier("report.retry.bottom")
             }
         }
-    }
-}
-
-private struct PaceScale: View {
-    let pace: Int
-
-    var body: some View {
-        GeometryReader { geometry in
-            let progress = min(1, max(0, CGFloat(pace - 110) / 190))
-            ZStack(alignment: .leading) {
-                Capsule().fill(TalkFitTheme.sageSoft.opacity(0.72)).frame(height: 10)
-                Capsule().fill(TalkFitTheme.moss).frame(width: max(12, geometry.size.width * progress), height: 10)
-                Circle()
-                    .fill(TalkFitTheme.clay)
-                    .frame(width: 18, height: 18)
-                    .offset(x: min(geometry.size.width - 18, max(0, geometry.size.width * progress - 9)))
-            }
-        }
-        .frame(height: 18)
-        .accessibilityLabel("語速每分鐘 \(pace) 字")
     }
 }
 

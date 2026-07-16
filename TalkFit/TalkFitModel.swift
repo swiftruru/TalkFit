@@ -9,10 +9,21 @@ final class TalkFitModel {
     var audioLevel: Float = 0.08
     var liveTranscript = ""
     var liveFillerEvidence: [FillerEvidence] = []
+    var liveSentencePaces: [SentencePaceFeedback] = []
     var firstResult: PracticeResult?
     var comparison: ComparisonResult?
     var fallbackNotice: String?
     var isDemoMode = false
+    var selectedLanguage: PracticeLanguage = .traditionalChinese
+    private(set) var fillerWordsByLanguage = Dictionary(
+        uniqueKeysWithValues: PracticeLanguage.allCases.map { language in
+            (language, language.defaultFillerWords)
+        }
+    )
+
+    var activeFillerWords: [String] {
+        fillerWordsByLanguage[selectedLanguage] ?? selectedLanguage.defaultFillerWords
+    }
 
     @ObservationIgnored private let speech = AudioSpeechService()
     @ObservationIgnored private var clockTask: Task<Void, Never>?
@@ -22,10 +33,51 @@ final class TalkFitModel {
     init() {
         speech.levelDidChange = { [weak self] level in self?.audioLevel = level }
         speech.captureDidChange = { [weak self] capture in
-            self?.liveTranscript = capture.readableTranscript
-            self?.liveFillerEvidence = capture.fillerEvidence
+            guard let self else { return }
+            self.liveTranscript = capture.readableTranscript
+            self.liveFillerEvidence = capture.fillerEvidence
+            self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+                capture: capture,
+                duration: max(self.elapsed, 1),
+                language: self.selectedLanguage
+            )
         }
-        speech.prewarmFillerLanguageModel()
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func selectLanguage(_ language: PracticeLanguage) {
+        guard stage == .home else { return }
+        selectedLanguage = language
+        speech.prewarmFillerLanguageModel(
+            language: language,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    @discardableResult
+    func addFillerWord(_ value: String) -> Bool {
+        let normalized = selectedLanguage.normalizeFiller(value)
+        guard !normalized.isEmpty, activeFillerWords.count < 40 else { return false }
+        guard !activeFillerWords.contains(where: {
+            selectedLanguage.normalizeFiller($0) == normalized
+        }) else { return false }
+        fillerWordsByLanguage[selectedLanguage, default: []].append(normalized)
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+        return true
+    }
+
+    func removeFillerWord(_ word: String) {
+        fillerWordsByLanguage[selectedLanguage, default: []].removeAll { $0 == word }
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
     }
 
     func startPractice(demo: Bool = false) {
@@ -47,11 +99,20 @@ final class TalkFitModel {
         analysisTask = Task { @MainActor [weak self] in
             guard let self else { return }
             let capture = self.isDemoMode
-                ? TalkFitFixtures.sampleCapture(for: round)
+                ? TalkFitFixtures.sampleCapture(
+                    for: round,
+                    language: self.selectedLanguage,
+                    fillerWords: self.activeFillerWords
+                )
                 : await self.speech.finish()
             guard !Task.isCancelled else { return }
             self.liveTranscript = capture.readableTranscript
             self.liveFillerEvidence = capture.fillerEvidence
+            self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+                capture: capture,
+                duration: capturedDuration,
+                language: self.selectedLanguage
+            )
             try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
             while self.analysisPaused {
@@ -63,7 +124,9 @@ final class TalkFitModel {
                 let result = TalkFitAnalyzer.makeResult(
                     capture: capture,
                     duration: capturedDuration,
-                    round: .first
+                    round: .first,
+                    language: self.selectedLanguage,
+                    fillerWords: self.activeFillerWords
                 )
                 self.firstResult = result
                 self.isDemoMode = result.source == .sample
@@ -76,7 +139,9 @@ final class TalkFitModel {
                 let after = TalkFitAnalyzer.makeResult(
                     capture: capture,
                     duration: capturedDuration,
-                    round: .retry
+                    round: .retry,
+                    language: self.selectedLanguage,
+                    fillerWords: self.activeFillerWords
                 )
                 self.comparison = ComparisonResult(before: before, after: after)
                 self.stage = .comparison
@@ -119,6 +184,7 @@ final class TalkFitModel {
         audioLevel = 0.08
         liveTranscript = ""
         liveFillerEvidence = []
+        liveSentencePaces = []
         firstResult = nil
         comparison = nil
         fallbackNotice = nil
@@ -137,6 +203,7 @@ final class TalkFitModel {
         audioLevel = 0.08
         liveTranscript = ""
         liveFillerEvidence = []
+        liveSentencePaces = []
         fallbackNotice = nil
     }
 
@@ -147,6 +214,7 @@ final class TalkFitModel {
         audioLevel = 0.08
         liveTranscript = ""
         liveFillerEvidence = []
+        liveSentencePaces = []
         fallbackNotice = demo ? "示範模式：會使用預先準備的穩定結果" : nil
         isDemoMode = demo
         stage = .recording(round)
@@ -156,7 +224,10 @@ final class TalkFitModel {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.speech.start()
+                try await self.speech.start(
+                    language: self.selectedLanguage,
+                    fillerWords: self.activeFillerWords
+                )
             } catch {
                 self.isDemoMode = true
                 self.fallbackNotice = "目前無法使用語音辨識，已切換為示範結果"
@@ -184,10 +255,21 @@ final class TalkFitModel {
 
     private func updateDemoRecognitionPreview() {
         guard case .recording(let round) = stage else { return }
-        let capture = TalkFitFixtures.sampleCapture(for: round)
+        let capture = TalkFitFixtures.sampleCapture(
+            for: round,
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
         let visibleCharacters = min(capture.readableTranscript.count, max(0, Int(elapsed * 5)))
         liveTranscript = String(capture.readableTranscript.prefix(visibleCharacters))
         liveFillerEvidence = capture.fillerEvidence.filter { $0.timestamp <= elapsed }
+        var liveCapture = SpeechCapture.empty
+        liveCapture.readableTranscript = liveTranscript
+        liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+            capture: liveCapture,
+            duration: max(elapsed, 1),
+            language: selectedLanguage
+        )
     }
 
 }

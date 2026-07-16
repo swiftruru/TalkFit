@@ -11,39 +11,69 @@ enum AudioSpeechError: Error {
 @MainActor
 final class AudioSpeechService {
     private let engine = AVAudioEngine()
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-TW"))
+    private var recognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var finishContinuation: CheckedContinuation<SpeechCapture, Never>?
     private var finishTimeoutTask: Task<Void, Never>?
     private var languageModelTask: Task<SFSpeechLanguageModel.Configuration?, Never>?
     private var fillerLanguageModelConfiguration: SFSpeechLanguageModel.Configuration?
+    private var languageModelKey: String?
+    private var currentLanguage: PracticeLanguage = .traditionalChinese
+    private var currentFillerWords = PracticeLanguage.traditionalChinese.defaultFillerWords
     private var tapInstalled = false
 
     private(set) var latestCapture = SpeechCapture.empty
     var levelDidChange: (Float) -> Void = { _ in }
     var captureDidChange: (SpeechCapture) -> Void = { _ in }
 
-    func prewarmFillerLanguageModel() {
-        guard languageModelTask == nil else { return }
-        let phrases = TalkFitFixtures.fillerLanguageModelPhrases
+    func prewarmFillerLanguageModel(
+        language: PracticeLanguage,
+        fillerWords: [String]
+    ) {
+        let key = language.localeIdentifier + "|" + fillerWords.joined(separator: "|")
+        guard languageModelKey != key else { return }
+        languageModelTask?.cancel()
+        languageModelKey = key
+        fillerLanguageModelConfiguration = nil
+        let phrases = language.languageModelPhrases(fillerWords: fillerWords)
+        let localeIdentifier = language.localeIdentifier
         languageModelTask = Task { [weak self] in
-            let configuration = await FillerLanguageModel.prepare(phrases: phrases)
+            let configuration = await FillerLanguageModel.prepare(
+                localeIdentifier: localeIdentifier,
+                phrases: phrases
+            )
+            guard !Task.isCancelled else { return nil }
             self?.fillerLanguageModelConfiguration = configuration
             return configuration
         }
     }
 
-    func start() async throws {
+    func start(
+        language: PracticeLanguage,
+        fillerWords: [String]
+    ) async throws {
         let microphoneAllowed = await requestMicrophonePermission()
         guard microphoneAllowed else { throw AudioSpeechError.microphoneDenied }
 
         let speechStatus = await requestSpeechPermission()
         guard speechStatus == .authorized else { throw AudioSpeechError.speechDenied }
-        guard let recognizer, recognizer.isAvailable else { throw AudioSpeechError.recognizerUnavailable }
 
         cancel()
+        currentLanguage = language
+        currentFillerWords = fillerWords
         latestCapture = .empty
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: language.localeIdentifier))
+        guard let recognizer, recognizer.isAvailable else {
+            throw AudioSpeechError.recognizerUnavailable
+        }
+        prewarmFillerLanguageModel(language: language, fillerWords: fillerWords)
+        let preparedLanguageModel: SFSpeechLanguageModel.Configuration?
+        if let fillerLanguageModelConfiguration {
+            preparedLanguageModel = fillerLanguageModelConfiguration
+        } else {
+            preparedLanguageModel = await languageModelTask?.value
+        }
 
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: [.duckOthers, .allowBluetoothHFP])
@@ -53,11 +83,10 @@ final class AudioSpeechService {
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
         request.taskHint = .unspecified
-        request.contextualStrings = TalkFitFixtures.recognitionHints
+        request.contextualStrings = language.recognitionHints(fillerWords: fillerWords)
         if recognizer.supportsOnDeviceRecognition {
             request.requiresOnDeviceRecognition = true
-            prewarmFillerLanguageModel()
-            request.customizedLanguageModel = fillerLanguageModelConfiguration
+            request.customizedLanguageModel = preparedLanguageModel
         }
         recognitionRequest = request
 
@@ -149,6 +178,13 @@ final class AudioSpeechService {
             latestCapture.readableTranscript = readable
             retainMostInformativeTranscript(readable)
         }
+        latestCapture.segments = result.bestTranscription.segments.map { segment in
+            SpeechTextSegment(
+                text: segment.substring,
+                timestamp: segment.timestamp,
+                duration: segment.duration
+            )
+        }
 
         for (index, transcription) in result.transcriptions.enumerated() {
             let source: FillerEvidenceSource
@@ -202,8 +238,13 @@ final class AudioSpeechService {
     }
 
     private func fillerOccurrences(in text: String) -> [String] {
-        TalkFitFixtures.fillerWords.flatMap { word in
-            Array(repeating: word, count: TalkFitAnalyzer.fillerCounts(in: text)[word] ?? 0)
+        currentFillerWords.flatMap { word in
+            let count = TalkFitAnalyzer.fillerCounts(
+                in: text,
+                fillerWords: currentFillerWords,
+                language: currentLanguage
+            )[word] ?? 0
+            return Array(repeating: word, count: count)
         }
     }
 
@@ -239,8 +280,16 @@ final class AudioSpeechService {
     private func retainMostInformativeTranscript(_ candidate: String) {
         let candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidate.isEmpty else { return }
-        let currentScore = TalkFitAnalyzer.fillerCounts(in: latestCapture.analysisTranscript).values.reduce(0, +)
-        let candidateScore = TalkFitAnalyzer.fillerCounts(in: candidate).values.reduce(0, +)
+        let currentScore = TalkFitAnalyzer.fillerCounts(
+            in: latestCapture.analysisTranscript,
+            fillerWords: currentFillerWords,
+            language: currentLanguage
+        ).values.reduce(0, +)
+        let candidateScore = TalkFitAnalyzer.fillerCounts(
+            in: candidate,
+            fillerWords: currentFillerWords,
+            language: currentLanguage
+        ).values.reduce(0, +)
         if candidateScore > currentScore
             || (candidateScore == currentScore && candidate.count > latestCapture.analysisTranscript.count) {
             latestCapture.analysisTranscript = candidate
