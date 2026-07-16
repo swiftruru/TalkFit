@@ -5,21 +5,13 @@ struct HomeView: View {
 
     @State private var presentedSheet: HomeSheet?
 
-    private var languageSelection: Binding<PracticeLanguage> {
-        Binding(
-            get: { model.selectedLanguage },
-            set: model.selectLanguage
-        )
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TalkFitTheme.sectionSpacing) {
                 BrandHeader()
                 HomeIntroduction()
                 GrowthStrip()
-                practiceSetup
-                promptSheet
+                practiceSheet
                 PracticeHistoryList()
             }
             .talkFitPageInsets(bottom: 132)
@@ -50,44 +42,17 @@ struct HomeView: View {
         }
     }
 
-    private var practiceSetup: some View {
-        NotebookSection(title: "練習設定") {
-            VStack(alignment: .leading, spacing: 14) {
-                Picker("口說語言", selection: languageSelection) {
-                    ForEach(PracticeLanguage.allCases) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityHint("切換 Apple 語音辨識與分析使用的語言")
+    private var practiceSheet: some View {
+        NotebookSection(title: "今日練習") {
+            VStack(alignment: .leading, spacing: 18) {
+                GardenLanguageSelector(
+                    selectedLanguage: model.selectedLanguage,
+                    selectLanguage: model.selectLanguage
+                )
 
-                Button(action: showFillerLibrary) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "text.badge.plus")
-                            .foregroundStyle(TalkFitTheme.clay)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("調整贅字庫")
-                                .font(.subheadline.weight(.semibold))
-                            Text("目前 \(model.activeFillerWords.count) 個 · 可加入自己的口頭習慣")
-                                .font(.caption)
-                                .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
-                        }
-                        Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(TalkFitTheme.sage)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("home.fillers")
-            }
-        }
-    }
+                Divider()
+                    .overlay(TalkFitTheme.line)
 
-    private var promptSheet: some View {
-        NotebookSection(title: "今日推薦") {
-            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     Text(model.selectedLanguage.promptTitle)
                         .font(.system(.title2, design: .serif, weight: .bold))
@@ -104,10 +69,43 @@ struct HomeView: View {
                     .font(.body)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
+
                 Rectangle()
                     .fill(TalkFitTheme.clay)
-                    .frame(width: 66, height: 2)
+                    .frame(width: 58, height: 2)
                     .accessibilityHidden(true)
+
+                Divider()
+                    .overlay(TalkFitTheme.line)
+
+                Button(action: showFillerLibrary) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "text.badge.plus")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.clay)
+                            .frame(width: 34, height: 34)
+                            .background(TalkFitTheme.clay.opacity(0.1), in: Circle())
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("調整贅字庫")
+                                .font(.subheadline.weight(.semibold))
+                            Text("目前 \(model.activeFillerWords.count) 個 · 加入自己的口頭習慣")
+                                .font(.caption)
+                                .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(TalkFitTheme.sage)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("調整贅字庫，目前 \(model.activeFillerWords.count) 個")
+                .accessibilityHint("加入或移除自己的口頭習慣")
+                .accessibilityIdentifier("home.fillers")
             }
         }
     }
@@ -129,6 +127,79 @@ private enum HomeSheet: String, Identifiable {
     case fillerLibrary
 
     var id: String { rawValue }
+}
+
+private struct GardenLanguageSelector: View {
+    let selectedLanguage: PracticeLanguage
+    let selectLanguage: (PracticeLanguage) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("練習語言")
+                .font(.caption2.weight(.semibold))
+                .tracking(1.1)
+                .foregroundStyle(TalkFitTheme.moss)
+
+            HStack(spacing: 10) {
+                ForEach(PracticeLanguage.allCases) { language in
+                    languageButton(for: language)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("練習語言")
+    }
+
+    private func languageButton(for language: PracticeLanguage) -> some View {
+        let isSelected = language == selectedLanguage
+        return Button {
+            selectLanguage(language)
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: isSelected ? "leaf.fill" : "leaf")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isSelected ? TalkFitTheme.moss : TalkFitTheme.sage)
+                    .accessibilityHidden(true)
+                Text(language.displayName)
+                    .font(.subheadline.weight(isSelected ? .bold : .medium))
+            }
+            .foregroundStyle(isSelected ? TalkFitTheme.pine : TalkFitTheme.ink.opacity(0.68))
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .background(
+                isSelected
+                    ? TalkFitTheme.sageSoft.opacity(0.5)
+                    : TalkFitTheme.paperLight.opacity(0.36),
+                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(
+                        isSelected ? TalkFitTheme.moss.opacity(0.34) : TalkFitTheme.line,
+                        lineWidth: 1
+                    )
+            }
+            .overlay(alignment: .bottom) {
+                if isSelected {
+                    Capsule()
+                        .fill(TalkFitTheme.clay)
+                        .frame(width: 28, height: 2)
+                        .padding(.bottom, 6)
+                        .accessibilityHidden(true)
+                }
+            }
+            .shadow(
+                color: isSelected ? TalkFitTheme.ink.opacity(0.07) : .clear,
+                radius: 4,
+                y: 2
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("使用 \(language.displayName) 練習")
+        .accessibilityValue(isSelected ? "已選取" : "未選取")
+        .accessibilityHint("切換語音辨識、題目與分析語言")
+        .accessibilityIdentifier("home.language.\(language.rawValue)")
+    }
 }
 
 private struct HomeIntroduction: View {
