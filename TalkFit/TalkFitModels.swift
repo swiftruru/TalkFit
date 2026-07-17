@@ -10,9 +10,33 @@ enum PracticeStage: Equatable {
     case home
     case recording(PracticeRound)
     case analyzing(PracticeRound)
+    case recognitionIssue(PracticeRound, RecognitionIssue)
     case report
     case retry
     case comparison
+}
+
+enum RecognitionIssue: Equatable {
+    case serviceUnavailable
+    case noTranscript
+
+    var title: String {
+        switch self {
+        case .serviceUnavailable:
+            "目前無法開始語音辨識"
+        case .noTranscript:
+            "這次沒有取得逐字稿"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .serviceUnavailable:
+            "麥克風或 Apple 語音辨識目前無法使用。你的內容不會被替換成示範逐字稿。"
+        case .noTranscript:
+            "我們沒有收到足夠清楚的辨識文字。這次錄音不會被換成「小安」的範例內容。"
+        }
+    }
 }
 
 enum ResultSource: Equatable {
@@ -75,6 +99,21 @@ struct SpeechCapture: Equatable {
         segments: [],
         source: .recognized
     )
+
+    var preservingBestTranscript: SpeechCapture {
+        var capture = self
+        let readable = readableTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard readable.isEmpty else {
+            capture.readableTranscript = readable
+            return capture
+        }
+        capture.readableTranscript = analysisTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        return capture
+    }
+
+    var hasReadableTranscript: Bool {
+        !readableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 struct PracticeResult: Equatable {
