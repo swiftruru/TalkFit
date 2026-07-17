@@ -42,6 +42,8 @@ TalkFit 是一款溫暖、低壓力的私人表達教練。使用者可以用繁
 
 > 說完一段話後，TalkFit 找出最需要改善的片段，讓使用者立即重練，並清楚看見自己真的進步了。
 
+此 repository 也包含 `website/` 官方產品網站，提供產品介紹、TestFlight 候補名單、支援中心、隱私權政策與使用條款。
+
 ## 畫面預覽
 
 | 首頁 | 練習報告 | 前後比較 |
@@ -191,8 +193,10 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 | 錄音 | AVFoundation、`AVAudioEngine` |
 | 語音辨識 | Speech、`SFSpeechRecognizer` |
 | 資料來源 | 單一 Observation 狀態、集中式 fixtures、裝置端偏好與本機練習摘要 |
-| 後端 | 無 |
+| App 後端 | 無；核心分析與練習摘要均在裝置端處理 |
 | 持久化 | SwiftData（選擇開啟的練習摘要）、`UserDefaults`（贅字庫差異與歷史開關） |
+| 官方網站 | Next.js 16 App Router、React 19、TypeScript、vinext、Vite |
+| 網站執行環境 | Cloudflare Workers、Cloudflare D1、Drizzle ORM |
 
 ## 專案結構
 
@@ -227,6 +231,16 @@ TalkFitTests/
 ├── PracticeTrendTests.swift         # 趨勢門檻、分組、排序與指標測試
 ├── PracticeContextTests.swift       # 情境題目、語速分類、Speech hints 與示範改善測試
 └── ScriptPracticeTests.swift        # 講稿分段、雙語涵蓋、隱私與穩定備援測試
+
+website/
+├── app/                         # Next.js App Router 頁面、元件與 API routes
+├── db/                          # D1 連線與 Drizzle schema
+├── drizzle/                     # D1 database migrations
+├── public/                      # 網站圖片、icon 與社群分享素材
+├── tests/                       # 建置後 HTML 驗證
+├── worker/                      # Cloudflare Worker entry point
+├── package.json                 # 網站 scripts 與 dependency 版本
+└── vite.config.ts               # vinext、Vite 與 Cloudflare 整合設定
 ```
 
 ## 執行環境
@@ -235,6 +249,7 @@ TalkFitTests/
 - iOS 26.5 SDK。
 - 專案基準裝置：iPhone 17 Pro。
 - 真實語音路徑需要支援麥克風與 Apple Speech 的 iPhone。
+- 官方網站需要 Node.js 22.13.0 或更新版本。
 
 ## 開始使用
 
@@ -255,7 +270,25 @@ TalkFitTests/
 4. 選擇 iPhone 17 Pro Simulator 或支援 iOS 26.5 的實體 iPhone。
 5. 按下 Run 執行。
 
-專案沒有第三方套件，也不需要額外安裝 dependency。
+iOS App 沒有第三方套件，不需要額外安裝 dependency。
+
+### 執行官方網站
+
+```bash
+cd website
+npm install
+npm run dev
+```
+
+網站以 vinext 使用 Next.js App Router API，並透過 Vite 與 Cloudflare Worker 執行。常用指令：
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+TestFlight 名單與隱私要求使用 Cloudflare D1 `DB` binding。如需發送確認信，可在部署環境設定選填的 `WAITLIST_WEBHOOK_URL`；請勿將 `.env*` 或憑證提交進 repository。更多網站說明見 [`website/README.md`](website/README.md)。
 
 ## 權限說明
 
@@ -345,4 +378,6 @@ TalkFitTests/
 
 ## 隱私
 
-目前版本沒有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。使用者選擇開啟歷史後，SwiftData 只在裝置保存日期、語言與前後指標摘要；不保存錄音、逐字稿、逐句內容或贅字時間戳。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
+iOS App 沒有 TalkFit 自有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。使用者選擇開啟歷史後，SwiftData 只在裝置保存日期、語言與前後指標摘要；不保存錄音、逐字稿、逐句內容或贅字時間戳。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
+
+官方網站另使用 Cloudflare D1 保存 TestFlight 候補名單與使用者主動提交的隱私要求，不會接收或保存 App 錄音與逐字稿。詳細說明見網站的隱私權政策頁面。

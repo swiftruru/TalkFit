@@ -1,0 +1,51 @@
+{
+  "canvas": {
+    "width": 1290,
+    "height": 2796,
+    "format": "png"
+  },
+  "device": "iPhone 17 Pro Simulator",
+  "os": "iOS 26.5",
+  "items": [
+    {
+      "order": 1,
+      "screen": "home",
+      "headline": "把下一次重要的開口，先練一次",
+      "subhead": "中文、英文與四種情境，從 30 秒開始",
+      "source": "raw/01-home.jpg",
+      "output": "final/01-home.png"
+    },
+    {
+      "order": 2,
+      "screen": "recording",
+      "headline": "開口時，就知道自己的節奏",
+      "subhead": "即時逐字稿、音量與逐句語速一起陪你",
+      "source": "raw/02-recording.jpg",
+      "output": "final/02-recording.png"
+    },
+    {
+      "order": 3,
+      "screen": "report",
+      "headline": "不用改整篇，先找出最關鍵的一段",
+      "subhead": "看見贅字、語速、停頓與優先改善片段",
+      "source": "raw/03-report.jpg",
+      "output": "final/03-report.png"
+    },
+    {
+      "order": 4,
+      "screen": "retry",
+      "headline": "只重練最值得改善的一小段",
+      "subhead": "帶著一個具體提醒，立刻再說一次",
+      "source": "raw/04-retry.jpg",
+      "output": "final/04-retry.png"
+    },
+    {
+      "order": 5,
+      "screen": "comparison",
+      "headline": "進步不是感覺，前後清楚看見",
+      "subhead": "比較贅字、語速與穩定度的真實改變",
+      "source": "raw/05-comparison.jpg",
+      "output": "final/05-comparison.png"
+    }
+  ]
+}

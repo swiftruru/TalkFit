@@ -18,6 +18,10 @@ DerivedData/
 *.dSYM
 *.dSYM.zip
 
+# Website source plugin (not an Xcode build product)
+!website/build/
+!website/build/sites-vite-plugin.ts
+
 # Swift Package Manager
 .build/
 .swiftpm/xcode/xcuserdata/

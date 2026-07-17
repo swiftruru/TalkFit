@@ -1,0 +1,41 @@
+event: iOS AI Summer Camp 2026
+name: TalkFit
+team_name: 小狐狸
+category: education
+intro: TalkFit is a warm, low-pressure iOS speaking coach for students,
+  presenters, interview candidates, and anyone who wants to communicate more
+  clearly. After a short recording, TalkFit uses Apple Speech to create a
+  readable transcript and analyzes filler words, speaking pace, pauses, and the
+  segment that needs the most attention. Instead of repeating the entire speech,
+  the user immediately retries one focused segment and sees a clear
+  before-and-after comparison. TalkFit supports Traditional Chinese and English,
+  uses explainable on-device rules, does not save recordings or transcripts, and
+  includes a reliable demo fallback when speech recognition is unavailable.
+localizations:
+  en:
+    name: TalkFit
+    intro: TalkFit is a warm, low-pressure iOS speaking coach for students,
+      presenters, interview candidates, and anyone who wants to communicate more
+      clearly. After a short recording, TalkFit uses Apple Speech to create a
+      readable transcript and analyzes filler words, speaking pace, pauses, and
+      the segment that needs the most attention. Instead of repeating the entire
+      speech, the user immediately retries one focused segment and sees a clear
+      before-and-after comparison. TalkFit supports Traditional Chinese and
+      English, uses explainable on-device rules, does not save recordings or
+      transcripts, and includes a reliable demo fallback when speech recognition
+      is unavailable.
+  zh-TW:
+    name: TalkFit｜綠園練習簿
+    intro: TalkFit 是一款溫暖、低壓力的 iOS 私人口說教練，適合準備課堂報告、自我介紹、
+      面試回答、簡報與公開發言的學生和工作者。使用者錄下一段短講後，TalkFit 會透過 Apple Speech
+      產生逐字稿，分析贅字、語速、停頓與最需要改善的片段，讓使用者不必 重說整篇，而是直接針對最關鍵的一小段立即重練，最後用前後比較看見贅字減少、
+      節奏與穩定度的進步。App 支援繁體中文與英文，採用可解釋的本機規則，不保存錄音 與逐字稿，並在語音辨識不可用時提供清楚、不冒充真實內容的示範備援。
+video_url: https://youtube.com/watch?v=xxxx
+poster_site: https://talkfit-garden.swiftruru.chatgpt.site/
+icon: https://olnyshvsfziowerjrmhq.supabase.co/storage/v1/object/public/submissions/604af849-7886-4455-8a49-07f3bf8e78ad/submissions/7b617184-3fd4-442c-a788-40e52f8aeead/icon-icon.png
+screenshots:
+  - .scc/media/screenshots/01-home.png
+  - .scc/media/screenshots/02-recording.png
+  - .scc/media/screenshots/03-report.png
+  - .scc/media/screenshots/04-retry.png
+  - .scc/media/screenshots/05-comparison.png
