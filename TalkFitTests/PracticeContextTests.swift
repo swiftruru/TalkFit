@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import TalkFit
 
@@ -17,6 +18,18 @@ struct PracticeContextTests {
             #expect(Set(prompts).count == 4)
             #expect(Set(samples).count == 4)
             #expect(prompts.allSatisfy { !$0.isEmpty })
+        }
+    }
+
+    @Test("每種短講情境都有獨立的雙語預設講稿")
+    func contextsHaveDefaultRecordingScripts() {
+        for language in PracticeLanguage.allCases {
+            let scripts = PracticeContext.allCases.map {
+                $0.defaultRecordingScript(for: language)
+            }
+
+            #expect(Set(scripts).count == PracticeContext.allCases.count)
+            #expect(scripts.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
         }
     }
 

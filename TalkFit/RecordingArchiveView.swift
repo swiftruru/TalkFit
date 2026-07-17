@@ -1,5 +1,3 @@
-import AVFoundation
-import Observation
 import SwiftUI
 
 struct RecordingArchiveView: View {
@@ -225,7 +223,7 @@ private struct RecordingSessionDetailView: View {
     let session: RecordingArchiveSessionSummary
 
     @Environment(\.dismiss) private var dismiss
-    @State private var playback = RecordingPlaybackController()
+    @State private var playback = AudioPlaybackController()
     @State private var showsDeleteConfirmation = false
 
     var body: some View {
@@ -297,15 +295,18 @@ private struct RecordingSessionDetailView: View {
 private struct RecordingAttemptCard: View {
     let attempt: RecordingArchiveAttemptSummary
     let sessionKind: RecordingArchiveSessionKind
-    let playback: RecordingPlaybackController
+    let playback: AudioPlaybackController
 
-    private var isActive: Bool { playback.activeAttemptID == attempt.id }
+    private var isActive: Bool { playback.activeURL == attempt.audioURL }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 13) {
                 Button {
-                    playback.toggle(attempt)
+                    playback.toggle(
+                        url: attempt.audioURL,
+                        isAvailable: attempt.audioIsAvailable
+                    )
                 } label: {
                     Image(systemName: isActive && playback.isPlaying ? "pause.fill" : "play.fill")
                         .font(.headline)
@@ -334,6 +335,15 @@ private struct RecordingAttemptCard: View {
 
             ProgressView(value: isActive ? playback.progress : 0)
                 .tint(TalkFitTheme.moss)
+
+            if isActive {
+                PlaybackTranscriptView(
+                    transcript: attempt.transcript,
+                    segments: attempt.transcriptSegments,
+                    currentTime: playback.currentTime,
+                    progress: playback.progress
+                )
+            }
 
             HStack(spacing: 12) {
                 attemptMetric(label: "贅字", value: attempt.fillerCount.map { "\($0) 個" } ?? "—")
@@ -384,84 +394,96 @@ private struct RecordingAttemptCard: View {
     }
 }
 
-@MainActor
-@Observable
-private final class RecordingPlaybackController {
-    private var player: AVAudioPlayer?
-    private var progressTask: Task<Void, Never>?
+struct PlaybackTranscriptProgress {
+    static func highlightedCharacterCount(
+        transcript: String,
+        segments: [SpeechTextSegment],
+        currentTime: TimeInterval,
+        progress: Double
+    ) -> Int {
+        guard !transcript.isEmpty else { return 0 }
+        let clampedProgress = min(1, max(0, progress))
+        let timedSegments = segments
+            .filter { !$0.text.isEmpty }
+            .sorted { $0.timestamp < $1.timestamp }
+        guard !timedSegments.isEmpty else {
+            return min(transcript.count, Int((Double(transcript.count) * clampedProgress).rounded()))
+        }
 
-    var activeAttemptID: UUID?
-    var isPlaying = false
-    var progress = 0.0
-    var failureMessage: String?
+        if let last = timedSegments.last,
+           currentTime >= last.timestamp + max(last.duration, 0.05) {
+            return transcript.count
+        }
 
-    func toggle(_ attempt: RecordingArchiveAttemptSummary) {
-        if activeAttemptID == attempt.id, let player {
-            if player.isPlaying {
-                player.pause()
-                isPlaying = false
-                progressTask?.cancel()
+        let totalSegmentCharacters = timedSegments.reduce(0) { $0 + $1.text.count }
+        guard totalSegmentCharacters > 0 else {
+            return min(transcript.count, Int((Double(transcript.count) * clampedProgress).rounded()))
+        }
+
+        var spokenSegmentCharacters = 0.0
+        for segment in timedSegments {
+            guard currentTime > segment.timestamp else { break }
+            let duration = max(segment.duration, 0.05)
+            let segmentProgress = min(1, max(0, (currentTime - segment.timestamp) / duration))
+            spokenSegmentCharacters += Double(segment.text.count) * segmentProgress
+            if segmentProgress < 1 { break }
+        }
+
+        let timedProgress = spokenSegmentCharacters / Double(totalSegmentCharacters)
+        return min(transcript.count, Int((Double(transcript.count) * timedProgress).rounded()))
+    }
+}
+
+private struct PlaybackTranscriptView: View {
+    let transcript: String
+    let segments: [SpeechTextSegment]
+    let currentTime: TimeInterval
+    let progress: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label("播放逐字稿", systemImage: "captions.bubble.fill")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(TalkFitTheme.moss)
+
+            if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("這筆錄音沒有可顯示的逐字稿。")
+                    .font(.caption)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
             } else {
-                player.play()
-                isPlaying = true
-                startProgressUpdates()
+                Text(highlightedTranscript)
+                    .font(.subheadline)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            return
         }
-
-        stop()
-        activeAttemptID = attempt.id
-        guard attempt.audioIsAvailable else {
-            failureMessage = "找不到這段錄音。"
-            return
-        }
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-            try session.setActive(true)
-            let player = try AVAudioPlayer(contentsOf: attempt.audioURL)
-            player.prepareToPlay()
-            guard player.play() else {
-                failureMessage = "目前無法播放這段錄音。"
-                return
-            }
-            self.player = player
-            isPlaying = true
-            failureMessage = nil
-            startProgressUpdates()
-        } catch {
-            isPlaying = false
-            failureMessage = "目前無法播放這段錄音。"
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(TalkFitTheme.sageSoft.opacity(0.22), in: RoundedRectangle(cornerRadius: 15))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            transcript.isEmpty
+                ? "播放逐字稿，這筆錄音沒有逐字稿"
+                : "播放逐字稿，已播放 \(Int(progress * 100))%，\(transcript)"
+        )
     }
 
-    func stop() {
-        progressTask?.cancel()
-        progressTask = nil
-        player?.stop()
-        player = nil
-        activeAttemptID = nil
-        isPlaying = false
-        progress = 0
-        failureMessage = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-
-    private func startProgressUpdates() {
-        progressTask?.cancel()
-        progressTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self, let player = self.player else { return }
-                self.progress = player.duration > 0 ? player.currentTime / player.duration : 0
-                if !player.isPlaying {
-                    self.isPlaying = false
-                    self.progress = 1
-                    self.progressTask = nil
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(120))
-            }
+    private var highlightedTranscript: AttributedString {
+        var attributed = AttributedString(transcript)
+        attributed.foregroundColor = TalkFitTheme.ink.opacity(0.38)
+        let count = PlaybackTranscriptProgress.highlightedCharacterCount(
+            transcript: transcript,
+            segments: segments,
+            currentTime: currentTime,
+            progress: progress
+        )
+        guard count > 0 else { return attributed }
+        let endIndex = transcript.index(transcript.startIndex, offsetBy: min(count, transcript.count))
+        if let range = Range(transcript.startIndex..<endIndex, in: attributed) {
+            attributed[range].foregroundColor = TalkFitTheme.pine
+            attributed[range].backgroundColor = TalkFitTheme.sageSoft.opacity(0.52)
         }
+        return attributed
     }
 }
 

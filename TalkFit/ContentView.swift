@@ -211,7 +211,7 @@ private struct RecordingView: View {
         if round == .first {
             GardenLeavePrompt(
                 title: "要離開這次錄音嗎？",
-                message: "目前錄下的內容與即時逐字稿不會保留。",
+                message: "目前錄下的內容不會保留。",
                 leaveTitle: "離開練習",
                 stayTitle: "繼續錄音"
             )
@@ -245,7 +245,12 @@ private struct RecordingView: View {
                 )
             }
         } else {
-            LiveTranscriptRecordingText(transcript: model.liveTranscript)
+            RecordingReferenceText(
+                title: round == .retry ? "這次重練的句子" : "\(model.selectedContext.shortName)預設講稿",
+                text: round == .retry
+                    ? model.retryPrompt
+                    : model.selectedContext.defaultRecordingScript(for: model.selectedLanguage)
+            )
         }
     }
 }
@@ -281,38 +286,23 @@ private struct ScriptRecordingText: View {
     }
 }
 
-private struct LiveTranscriptRecordingText: View {
-    let transcript: String
-
-    private let transcriptAnchor = "recording-live-transcript-end"
+private struct RecordingReferenceText: View {
+    let title: String
+    let text: String
 
     var body: some View {
-        NotebookSection(title: "即時逐字稿") {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Text(transcript.isEmpty ? "開始說話後，逐字稿會顯示在這裡。" : transcript)
-                        .font(.body.weight(transcript.isEmpty ? .regular : .medium))
-                        .foregroundStyle(
-                            transcript.isEmpty
-                                ? TalkFitTheme.ink.opacity(0.52)
-                                : TalkFitTheme.ink
-                        )
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .id(transcriptAnchor)
-                }
-                .frame(minHeight: 82, maxHeight: 164)
-                .onChange(of: transcript) { _, _ in
-                    proxy.scrollTo(transcriptAnchor, anchor: .bottom)
-                }
+        NotebookSection(title: title) {
+            ScrollView {
+                Text(text)
+                    .font(.body.weight(.medium))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(minHeight: 82, maxHeight: 164)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            transcript.isEmpty
-                ? "即時逐字稿，等待開始說話"
-                : "即時逐字稿：\(transcript)"
-        )
+        .accessibilityLabel("\(title)：\(text)")
     }
 }
 
@@ -547,6 +537,16 @@ private struct ReportView: View {
 
                 ReportMetricsStrip(result: result, isFullScript: isFullScript)
 
+                if let recordingURL = model.reportRecordingURL {
+                    ResultRecordingPlaybackSection(
+                        title: "回放剛剛的錄音",
+                        helperText: "播放剛才錄下的原音，方便對照逐字稿與建議。",
+                        audioURL: recordingURL,
+                        duration: result.duration,
+                        accessibilityIdentifier: "report.playback"
+                    )
+                }
+
                 if isFullScript {
                     ScriptParagraphReviewSection(
                         feedback: model.scriptParagraphFeedback,
@@ -575,7 +575,7 @@ private struct ReportView: View {
                     ScriptComparisonSection(comparison: scriptComparison)
                 }
 
-                NotebookSection(title: "逐字稿 · 橘色是文字中的贅字") {
+                NotebookSection(title: "錄音完成後的逐字稿 · 橘色是文字中的贅字") {
                     VStack(alignment: .leading, spacing: 16) {
                         Text(result.highlightedTranscript)
                             .font(.body)
@@ -681,8 +681,80 @@ private struct ReportView: View {
             }
             Button("留在回饋頁", role: .cancel) {}
         } message: {
-            Text("保存日期、語言、摘要指標與這次的真實錄音；不保存講稿、逐字稿、逐句內容或贅字時間戳。錄音只留在這台 iPhone，之後可隨時關閉或刪除。")
+            Text("保存日期、語言、摘要指標、真實錄音與辨識逐字稿；不保存你貼上的講稿或贅字時間戳。資料只留在這台 iPhone，之後可隨時關閉或刪除。")
         }
+    }
+}
+
+private struct ResultRecordingPlaybackSection: View {
+    let title: String
+    let helperText: String
+    let audioURL: URL
+    let duration: TimeInterval
+    let accessibilityIdentifier: String
+
+    @State private var playback = AudioPlaybackController()
+
+    private var isActive: Bool {
+        playback.activeURL == audioURL
+    }
+
+    var body: some View {
+        NotebookSection(title: title) {
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(spacing: 13) {
+                    Button {
+                        playback.toggle(url: audioURL)
+                    } label: {
+                        Image(systemName: isActive && playback.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(width: 50, height: 50)
+                            .background(TalkFitTheme.pine, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isActive && playback.isPlaying ? "暫停剛剛的錄音" : "播放剛剛的錄音")
+                    .accessibilityIdentifier(accessibilityIdentifier)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(isActive && playback.isPlaying ? "正在播放" : "聽聽剛才怎麼說")
+                            .font(.subheadline.weight(.semibold))
+                        Text(timeSummary)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.56))
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                ProgressView(value: isActive ? playback.progress : 0)
+                    .tint(TalkFitTheme.moss)
+
+                Text(helperText)
+                    .font(.caption)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if isActive, let failureMessage = playback.failureMessage {
+                    Text(failureMessage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(TalkFitTheme.clay)
+                }
+            }
+        }
+        .onDisappear {
+            playback.stop()
+        }
+    }
+
+    private var timeSummary: String {
+        let current = isActive ? playback.currentTime : 0
+        let total = isActive && playback.duration > 0 ? playback.duration : duration
+        return "\(playbackTimeLabel(current)) / \(playbackTimeLabel(total))"
+    }
+
+    private func playbackTimeLabel(_ value: TimeInterval) -> String {
+        let seconds = max(0, Int(value.rounded()))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 }
 
@@ -959,6 +1031,16 @@ private struct ComparisonView: View {
                         .foregroundStyle(TalkFitTheme.ink.opacity(0.66))
                 }
 
+                if let recordingURL = model.comparisonRecordingURL {
+                    ResultRecordingPlaybackSection(
+                        title: "回放這次重錄",
+                        helperText: "先聽一次重錄內容，再查看前後差異。",
+                        audioURL: recordingURL,
+                        duration: comparison.after.duration,
+                        accessibilityIdentifier: "comparison.playback"
+                    )
+                }
+
                 NotebookSection(title: "前後比較") {
                     VStack(spacing: 14) {
                         MetricPair(
@@ -1025,7 +1107,7 @@ private struct ComparisonView: View {
             }
             Button("留在比較頁", role: .cancel) {}
         } message: {
-            Text("保存日期、語言、前後指標與這次的真實錄音；不保存講稿、逐字稿、逐句內容或贅字時間戳。錄音只留在這台 iPhone，之後可隨時關閉或刪除。")
+            Text("保存日期、語言、前後指標、真實錄音與辨識逐字稿；不保存你貼上的講稿或贅字時間戳。資料只留在這台 iPhone，之後可隨時關閉或刪除。")
         }
     }
 }

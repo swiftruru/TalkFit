@@ -29,6 +29,14 @@ final class TalkFitModel {
     private(set) var recordingSessions: [RecordingArchiveSessionSummary] = []
     private(set) var fillerWordsByLanguage: [PracticeLanguage: [String]]
 
+    var reportRecordingURL: URL? {
+        pendingRecordingAttempts.first(where: { $0.kind == .initial })?.temporaryAudioURL
+    }
+
+    var comparisonRecordingURL: URL? {
+        pendingRecordingAttempts.last(where: { $0.kind != .initial })?.temporaryAudioURL
+    }
+
     var activeFillerWords: [String] {
         fillerWordsByLanguage[selectedLanguage] ?? selectedLanguage.defaultFillerWords
     }
@@ -733,6 +741,8 @@ final class TalkFitModel {
                 fillerCount: result.fillerTotal,
                 pace: result.pace,
                 stability: result.stability,
+                transcript: result.transcript,
+                transcriptSegments: result.transcriptSegments,
                 source: result.source
             )
         )
@@ -762,7 +772,7 @@ final class TalkFitModel {
             paragraphCount: scriptPractice?.paragraphs.count,
             attempts: pendingRecordingAttempts
         )
-        try? recordingArchiveStore.importSession(draft)
+        _ = try? recordingArchiveStore.importSession(draft)
         recordingSessions = recordingArchiveStore.fetchAll()
     }
 
@@ -786,7 +796,8 @@ final class TalkFitModel {
             duration: TimeInterval,
             fillerCount: Int,
             pace: Int,
-            stability: Int
+            stability: Int,
+            transcript: String = "我曾帶領三人團隊改善選課流程，重新整理資訊後，完成時間縮短兩分鐘。"
         ) -> RecordingArchiveAttemptSummary {
             RecordingArchiveAttemptSummary(
                 id: UUID(),
@@ -796,11 +807,18 @@ final class TalkFitModel {
                 paragraphNumber: paragraphNumber,
                 relativeAudioPath: "qa/fixture.caf",
                 audioURL: unavailableURL,
-                audioIsAvailable: false,
+                audioIsAvailable: FileManager.default.fileExists(atPath: unavailableURL.path),
                 duration: duration,
                 fillerCount: fillerCount,
                 pace: pace,
-                stability: stability
+                stability: stability,
+                transcript: transcript,
+                transcriptSegments: [
+                    SpeechTextSegment(text: "我曾帶領三人團隊", timestamp: 0, duration: 0.35),
+                    SpeechTextSegment(text: "改善選課流程", timestamp: 0.38, duration: 0.25),
+                    SpeechTextSegment(text: "重新整理資訊後", timestamp: 0.66, duration: 0.25),
+                    SpeechTextSegment(text: "完成時間縮短兩分鐘", timestamp: 0.94, duration: 0.35)
+                ]
             )
         }
         recordingSessions = [

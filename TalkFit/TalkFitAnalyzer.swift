@@ -72,6 +72,7 @@ enum TalkFitAnalyzer {
 
         return PracticeResult(
             transcript: transcript,
+            transcriptSegments: effectiveCapture.segments,
             duration: effectiveDuration,
             fillerCounts: counts,
             fillerEvidence: effectiveCapture.fillerEvidence.sorted { $0.timestamp < $1.timestamp },

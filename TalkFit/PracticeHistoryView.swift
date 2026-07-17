@@ -74,7 +74,7 @@ struct PracticeHistoryView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Toggle(isOn: historyEnabledBinding) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("保存練習摘要與錄音")
+                        Text("保存練習摘要、錄音與逐字稿")
                             .font(.body.weight(.semibold))
                         Text(model.isHistoryEnabled ? "完成真實練習後，自動留下一筆" : "目前不會新增任何練習紀錄")
                             .font(.caption)
@@ -87,7 +87,7 @@ struct PracticeHistoryView: View {
                 Divider().overlay(TalkFitTheme.line)
 
                 Label {
-                    Text("真實錄音會保存在這台 iPhone；不保存講稿、逐字稿、逐句內容或贅字時間戳。示範練習不會寫入。")
+                    Text("真實錄音與辨識逐字稿會保存在這台 iPhone；不保存你貼上的講稿或贅字時間戳。示範練習不會寫入。")
                         .font(.caption)
                         .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
                         .fixedSize(horizontal: false, vertical: true)
@@ -150,7 +150,7 @@ struct PracticeHistoryView: View {
                     .font(.subheadline.weight(.semibold))
                 Text(model.isHistoryEnabled
                      ? "完成一次真實練習與重練後，進步摘要會出現在這裡。"
-                     : "開啟後，完成並收下的真實練習會保存摘要與錄音。")
+                     : "開啟後，完成並收下的真實練習會保存摘要、錄音與逐字稿。")
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)

@@ -168,10 +168,10 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 15) {
                 Toggle(isOn: historyEnabledBinding) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("保存練習摘要與錄音")
+                        Text("保存練習摘要、錄音與逐字稿")
                             .font(.body.weight(.semibold))
                         Text(model.isHistoryEnabled
-                             ? "收下真實練習時，會保存這次的每段錄音"
+                             ? "收下真實練習時，會保存每段錄音與辨識逐字稿"
                              : "目前不會新增紀錄；已保存的內容仍會保留")
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
@@ -185,12 +185,12 @@ struct SettingsView: View {
                 Divider()
                     .overlay(TalkFitTheme.line)
 
-                Label("摘要與錄音只保存在這台 iPhone。", systemImage: "iphone.gen3")
+                Label("摘要、錄音與逐字稿只保存在這台 iPhone。", systemImage: "iphone.gen3")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(TalkFitTheme.moss)
 
                 Label(
-                    "講稿與逐字稿不會寫入紀錄；示範練習也永遠不會保存。",
+                    "你貼上的講稿不會寫入紀錄；示範練習也永遠不會保存。",
                     systemImage: "lock.shield.fill"
                 )
                 .font(.caption)

@@ -95,7 +95,7 @@ struct ScriptPracticeView: View {
                 Image(systemName: "lock.shield")
                     .foregroundStyle(TalkFitTheme.moss)
                     .accessibilityHidden(true)
-                Text("講稿只留在這次 App 使用期間；歷史紀錄不會保存講稿或逐字稿。若你開啟本機紀錄，收下練習時會保存錄音。")
+                Text("你貼上的講稿只留在這次 App 使用期間，不會寫入歷史紀錄。若你開啟本機紀錄，收下練習時會保存錄音與辨識逐字稿。")
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)

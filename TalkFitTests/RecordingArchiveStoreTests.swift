@@ -29,6 +29,19 @@ struct RecordingArchiveStoreTests {
                         fillerCount: 2,
                         pace: 205,
                         stability: 76,
+                        transcript: "大家好，我正在練習把想法說清楚。",
+                        transcriptSegments: [
+                            SpeechTextSegment(
+                                text: "大家好",
+                                timestamp: 0,
+                                duration: 1.2
+                            ),
+                            SpeechTextSegment(
+                                text: "我正在練習把想法說清楚",
+                                timestamp: 1.3,
+                                duration: 3.4
+                            )
+                        ],
                         source: .recognized
                     )
                 ]
@@ -42,6 +55,9 @@ struct RecordingArchiveStoreTests {
         #expect(attempt.id == attemptID)
         #expect(!attempt.relativeAudioPath.hasPrefix("/"))
         #expect(attempt.audioIsAvailable)
+        #expect(attempt.transcript == "大家好，我正在練習把想法說清楚。")
+        #expect(attempt.transcriptSegments.count == 2)
+        #expect(attempt.transcriptSegments.last?.timestamp == 1.3)
         #expect(FileManager.default.fileExists(atPath: attempt.audioURL.path))
         #expect(!FileManager.default.fileExists(atPath: temporaryAudio.path))
     }

@@ -69,6 +69,10 @@ enum PracticeContext: String, CaseIterable, Identifiable, Equatable {
         }
     }
 
+    func defaultRecordingScript(for language: PracticeLanguage) -> String {
+        sampleTranscript(for: .retry, language: language)
+    }
+
     func recognitionHint(for language: PracticeLanguage) -> String {
         switch (self, language) {
         case (.selfIntroduction, .traditionalChinese): "三十秒自我介紹"

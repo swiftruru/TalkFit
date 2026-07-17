@@ -66,6 +66,8 @@ final class RecordingArchiveAttemptRecord {
     var fillerCount: Int?
     var pace: Int?
     var stability: Int?
+    var transcript: String?
+    var transcriptSegmentsData: Data?
 
     init(
         id: UUID,
@@ -78,7 +80,9 @@ final class RecordingArchiveAttemptRecord {
         duration: TimeInterval,
         fillerCount: Int?,
         pace: Int?,
-        stability: Int?
+        stability: Int?,
+        transcript: String? = nil,
+        transcriptSegmentsData: Data? = nil
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -91,6 +95,8 @@ final class RecordingArchiveAttemptRecord {
         self.fillerCount = fillerCount
         self.pace = pace
         self.stability = stability
+        self.transcript = transcript
+        self.transcriptSegmentsData = transcriptSegmentsData
     }
 }
 
@@ -104,6 +110,8 @@ struct RecordingArchiveAttemptDraft: Equatable {
     let fillerCount: Int?
     let pace: Int?
     let stability: Int?
+    let transcript: String
+    let transcriptSegments: [SpeechTextSegment]
     let source: ResultSource
 
     init(
@@ -116,6 +124,8 @@ struct RecordingArchiveAttemptDraft: Equatable {
         fillerCount: Int? = nil,
         pace: Int? = nil,
         stability: Int? = nil,
+        transcript: String = "",
+        transcriptSegments: [SpeechTextSegment] = [],
         source: ResultSource
     ) {
         self.id = id
@@ -127,6 +137,8 @@ struct RecordingArchiveAttemptDraft: Equatable {
         self.fillerCount = fillerCount
         self.pace = pace
         self.stability = stability
+        self.transcript = transcript
+        self.transcriptSegments = transcriptSegments
         self.source = source
     }
 }
@@ -175,6 +187,40 @@ struct RecordingArchiveAttemptSummary: Identifiable, Equatable {
     let fillerCount: Int?
     let pace: Int?
     let stability: Int?
+    let transcript: String
+    let transcriptSegments: [SpeechTextSegment]
+
+    init(
+        id: UUID,
+        capturedAt: Date,
+        sequence: Int,
+        kind: RecordingArchiveAttemptKind,
+        paragraphNumber: Int?,
+        relativeAudioPath: String,
+        audioURL: URL,
+        audioIsAvailable: Bool,
+        duration: TimeInterval,
+        fillerCount: Int?,
+        pace: Int?,
+        stability: Int?,
+        transcript: String = "",
+        transcriptSegments: [SpeechTextSegment] = []
+    ) {
+        self.id = id
+        self.capturedAt = capturedAt
+        self.sequence = sequence
+        self.kind = kind
+        self.paragraphNumber = paragraphNumber
+        self.relativeAudioPath = relativeAudioPath
+        self.audioURL = audioURL
+        self.audioIsAvailable = audioIsAvailable
+        self.duration = duration
+        self.fillerCount = fillerCount
+        self.pace = pace
+        self.stability = stability
+        self.transcript = transcript
+        self.transcriptSegments = transcriptSegments
+    }
 
     var displayName: String {
         switch kind {
@@ -354,7 +400,9 @@ final class RecordingArchiveStore {
                         duration: max(0, attempt.duration),
                         fillerCount: attempt.fillerCount,
                         pace: attempt.pace,
-                        stability: attempt.stability
+                        stability: attempt.stability,
+                        transcript: attempt.transcript,
+                        transcriptSegmentsData: try? JSONEncoder().encode(attempt.transcriptSegments)
                     )
                 )
             }
@@ -538,7 +586,11 @@ final class RecordingArchiveStore {
                     duration: attempt.duration,
                     fillerCount: attempt.fillerCount,
                     pace: attempt.pace,
-                    stability: attempt.stability
+                    stability: attempt.stability,
+                    transcript: attempt.transcript ?? "",
+                    transcriptSegments: attempt.transcriptSegmentsData.flatMap {
+                        try? JSONDecoder().decode([SpeechTextSegment].self, from: $0)
+                    } ?? []
                 )
             }
         return RecordingArchiveSessionSummary(

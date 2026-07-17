@@ -177,7 +177,7 @@ enum SentencePauseState: Equatable {
     }
 }
 
-struct SpeechTextSegment: Identifiable, Equatable {
+struct SpeechTextSegment: Identifiable, Equatable, Codable {
     let id: UUID
     let text: String
     let timestamp: TimeInterval

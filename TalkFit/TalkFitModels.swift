@@ -119,6 +119,7 @@ struct SpeechCapture: Equatable {
 
 struct PracticeResult: Equatable {
     let transcript: String
+    let transcriptSegments: [SpeechTextSegment]
     let duration: TimeInterval
     let fillerCounts: [String: Int]
     let fillerEvidence: [FillerEvidence]
@@ -136,6 +137,7 @@ struct PracticeResult: Equatable {
 
     init(
         transcript: String,
+        transcriptSegments: [SpeechTextSegment] = [],
         duration: TimeInterval,
         fillerCounts: [String: Int],
         fillerEvidence: [FillerEvidence],
@@ -152,6 +154,7 @@ struct PracticeResult: Equatable {
         source: ResultSource
     ) {
         self.transcript = transcript
+        self.transcriptSegments = transcriptSegments
         self.duration = duration
         self.fillerCounts = fillerCounts
         self.fillerEvidence = fillerEvidence
