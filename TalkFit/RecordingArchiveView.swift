@@ -23,7 +23,6 @@ struct RecordingArchiveView: View {
                             .foregroundStyle(TalkFitTheme.ink)
                             .accessibilityAddTraits(.isHeader)
                         archiveSummary
-                        privacyCard
                         sessionList
                     }
                     .talkFitPageInsets(bottom: 34)
@@ -88,30 +87,6 @@ struct RecordingArchiveView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(TalkFitTheme.line, lineWidth: 1)
-        }
-    }
-
-    private var privacyCard: some View {
-        NotebookSection(title: "只留在這台 iPhone") {
-            Toggle(isOn: historyEnabledBinding) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("保存練習摘要與錄音")
-                        .font(.body.weight(.semibold))
-                    Text(model.isHistoryEnabled
-                         ? "收下真實練習時，會保存這次的每段錄音"
-                         : "目前不會新增紀錄；已保存的內容仍會保留")
-                        .font(.caption)
-                        .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .tint(TalkFitTheme.moss)
-            .accessibilityIdentifier("recordings.toggle")
-
-            Label("講稿與逐字稿不會寫入紀錄；示範練習也永遠不會保存。", systemImage: "lock.shield.fill")
-                .font(.caption)
-                .foregroundStyle(TalkFitTheme.ink.opacity(0.66))
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -232,14 +207,7 @@ struct RecordingArchiveView: View {
         }
         return model.isHistoryEnabled
             ? "完成一次真實練習並選擇收下，之後就能在這裡回聽。"
-            : "先開啟保存；之後收下的真實練習才會留在裝置中。"
-    }
-
-    private var historyEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { model.isHistoryEnabled },
-            set: model.setHistoryEnabled
-        )
+            : "請到「設定」開啟保存；之後收下的真實練習才會留在裝置中。"
     }
 
     private var deleteConfirmationBinding: Binding<Bool> {

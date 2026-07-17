@@ -177,9 +177,12 @@ private struct RecordingView: View {
                     .accessibilityLabel("錄音時間 \(timerText)")
             }
 
-            WaveformView(level: model.audioLevel, time: model.elapsed)
-                .frame(height: 104)
-                .accessibilityLabel("即時音量波形")
+            WaveformView(
+                level: model.audioLevel,
+                time: model.elapsed,
+                feedback: model.liveSentencePaces.last,
+                language: model.selectedLanguage
+            )
 
             if let notice = model.fallbackNotice {
                 Text(notice)
@@ -189,47 +192,7 @@ private struct RecordingView: View {
                     .padding(.horizontal, 12)
             }
 
-            if !model.liveFillerEvidence.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("剛剛聽到", systemImage: "waveform.badge.mic")
-                        .font(.caption.weight(.semibold))
-                    HStack(spacing: 7) {
-                        ForEach(Array(model.liveFillerEvidence.suffix(3))) { event in
-                            Text("\(event.word) · \(event.timestampLabel)")
-                                .font(.caption.weight(.bold).monospacedDigit())
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 6)
-                                .background(TalkFitTheme.clay.opacity(0.1), in: Capsule())
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .foregroundStyle(TalkFitTheme.clay)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("已捕捉 \(model.liveFillerEvidence.count) 個可能的贅字")
-            }
-
-            if let latestPace = model.liveSentencePaces.last {
-                LivePaceNote(
-                    feedback: latestPace,
-                    language: model.selectedLanguage
-                )
-            }
-
-            recordingPromptSection
-
-            if !model.liveTranscript.isEmpty {
-                Text(model.liveTranscript)
-                    .font(.footnote)
-                    .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel("即時逐字稿：\(model.liveTranscript)")
-            } else {
-                Text("不急，照自己的速度說完就好。")
-                    .font(.footnote)
-                    .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
-            }
+            recordingTextSection
 
             Spacer(minLength: 4)
 
@@ -268,54 +231,202 @@ private struct RecordingView: View {
     }
 
     @ViewBuilder
-    private var recordingPromptSection: some View {
-        if round == .first, let session = model.scriptPractice {
-            NotebookSection(title: "完整講稿 · \(session.paragraphs.count) 段") {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(session.paragraphs) { paragraph in
-                            HStack(alignment: .top, spacing: 10) {
-                                Text("\(paragraph.number)")
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(TalkFitTheme.moss)
-                                    .frame(width: 24, height: 24)
-                                    .background(TalkFitTheme.sageSoft.opacity(0.42), in: Circle())
-                                Text(paragraph.text)
-                                    .font(.subheadline.weight(.medium))
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+    private var recordingTextSection: some View {
+        if let session = model.scriptPractice {
+            if round == .retry, let paragraph = model.retryParagraph {
+                ScriptRecordingText(
+                    title: "講稿第 \(paragraph.number) 段 · 本次只練這一段",
+                    paragraphs: [paragraph]
+                )
+            } else {
+                ScriptRecordingText(
+                    title: "完整講稿 · \(session.paragraphs.count) 段",
+                    paragraphs: session.paragraphs
+                )
+            }
+        } else {
+            LiveTranscriptRecordingText(transcript: model.liveTranscript)
+        }
+    }
+}
+
+private struct ScriptRecordingText: View {
+    let title: String
+    let paragraphs: [ScriptParagraph]
+
+    var body: some View {
+        NotebookSection(title: title) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(paragraphs) { paragraph in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text("\(paragraph.number)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundStyle(TalkFitTheme.moss)
+                                .frame(width: 24, height: 24)
+                                .background(TalkFitTheme.sageSoft.opacity(0.42), in: Circle())
+                                .accessibilityHidden(true)
+                            Text(paragraph.text)
+                                .font(.subheadline.weight(.medium))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .frame(maxHeight: 136)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-        } else {
-            NotebookSection(title: round == .first ? "短講題目" : "這次只練這一段") {
-                Text(round == .first ? model.activePrompt : model.retryPrompt)
-                    .font(.body.weight(.medium))
-                    .fixedSize(horizontal: false, vertical: true)
+            .frame(minHeight: 82, maxHeight: 164)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)：\(paragraphs.map(\.text).joined(separator: " "))")
+    }
+}
+
+private struct LiveTranscriptRecordingText: View {
+    let transcript: String
+
+    private let transcriptAnchor = "recording-live-transcript-end"
+
+    var body: some View {
+        NotebookSection(title: "即時逐字稿") {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(transcript.isEmpty ? "開始說話後，逐字稿會顯示在這裡。" : transcript)
+                        .font(.body.weight(transcript.isEmpty ? .regular : .medium))
+                        .foregroundStyle(
+                            transcript.isEmpty
+                                ? TalkFitTheme.ink.opacity(0.52)
+                                : TalkFitTheme.ink
+                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id(transcriptAnchor)
+                }
+                .frame(minHeight: 82, maxHeight: 164)
+                .onChange(of: transcript) { _, _ in
+                    proxy.scrollTo(transcriptAnchor, anchor: .bottom)
+                }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            transcript.isEmpty
+                ? "即時逐字稿，等待開始說話"
+                : "即時逐字稿：\(transcript)"
+        )
     }
 }
 
 private struct WaveformView: View {
     let level: Float
     let time: TimeInterval
+    let feedback: SentencePaceFeedback?
+    let language: PracticeLanguage
+
+    private var paceState: PaceState? { feedback?.state }
+
+    private var accentColor: Color {
+        paceState?.recordingColor ?? TalkFitTheme.sage
+    }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
-            ForEach(0..<27, id: \.self) { index in
-                let phase = sin(Double(index) * 0.72 + time * 4.5)
-                let envelope = 0.48 + 0.52 * sin(Double(index) / 26 * .pi)
-                let height = 12 + CGFloat(max(0.08, level)) * CGFloat((phase + 1.35) / 2.35) * 78 * envelope
-                Capsule()
-                    .fill(index.isMultiple(of: 6) ? TalkFitTheme.clay : TalkFitTheme.sage)
-                    .frame(maxWidth: 7, minHeight: 4, idealHeight: height, maxHeight: height)
+        VStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(0..<27, id: \.self) { index in
+                    let phase = sin(Double(index) * 0.72 + time * 4.5)
+                    let envelope = 0.48 + 0.52 * sin(Double(index) / 26 * .pi)
+                    let height = 12 + CGFloat(max(0.08, level)) * CGFloat((phase + 1.35) / 2.35) * 58 * envelope
+                    Capsule()
+                        .fill(accentColor.opacity(index.isMultiple(of: 6) ? 1 : 0.72))
+                        .frame(maxWidth: 7, minHeight: 4, idealHeight: height, maxHeight: height)
+                }
             }
+            .frame(maxWidth: .infinity, minHeight: 66)
+
+            paceSummary
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
+        .background(
+            accentColor.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(accentColor.opacity(0.22), lineWidth: 1)
+        }
         .animation(.linear(duration: 0.08), value: level)
+        .animation(.easeInOut(duration: 0.2), value: paceState)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    @ViewBuilder
+    private var paceSummary: some View {
+        if let feedback {
+            HStack(spacing: 8) {
+                Image(systemName: feedback.state.recordingSymbol)
+                    .font(.caption.weight(.bold))
+                    .accessibilityHidden(true)
+
+                Text("最新一句")
+                    .font(.caption.weight(.semibold))
+
+                Text("\(feedback.pace) \(language.paceUnit)")
+                    .font(.caption.weight(.bold).monospacedDigit())
+
+                Spacer(minLength: 4)
+
+                Text(feedback.state.recordingLabel)
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(accentColor.opacity(0.12), in: Capsule())
+            }
+            .foregroundStyle(accentColor)
+        } else {
+            HStack(spacing: 7) {
+                Image(systemName: "waveform")
+                    .accessibilityHidden(true)
+                Text("說完一句後顯示語速")
+                Spacer(minLength: 0)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(TalkFitTheme.ink.opacity(0.56))
+        }
+    }
+
+    private var accessibilitySummary: String {
+        guard let feedback else {
+            return "即時音量波形，說完一句後顯示語速"
+        }
+        return "即時音量波形，最新一句語速 \(feedback.pace) \(language.paceUnit)，\(feedback.state.recordingLabel)"
+    }
+}
+
+private extension PaceState {
+    var recordingColor: Color {
+        switch self {
+        case .slow: TalkFitTheme.paceSlow
+        case .steady: TalkFitTheme.paceNormal
+        case .fast: TalkFitTheme.paceFast
+        }
+    }
+
+    var recordingLabel: String {
+        switch self {
+        case .slow: "太慢"
+        case .steady: "正常"
+        case .fast: "太快"
+        }
+    }
+
+    var recordingSymbol: String {
+        switch self {
+        case .slow: "arrow.down"
+        case .steady: "checkmark"
+        case .fast: "arrow.up"
+        }
     }
 }
 
