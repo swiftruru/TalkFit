@@ -9,27 +9,36 @@ struct ScriptParagraph: Identifiable, Equatable {
 
 struct ScriptPracticeSession: Equatable {
     let paragraphs: [ScriptParagraph]
-    var selectedIndex: Int
 
-    var selectedParagraph: ScriptParagraph? {
-        paragraphs.first { $0.id == selectedIndex }
+    var fullText: String {
+        paragraphs.map(\.text).joined(separator: "\n\n")
     }
 
-    static func make(text: String, selectedIndex: Int = 0) -> ScriptPracticeSession? {
+    static func make(text: String) -> ScriptPracticeSession? {
         let paragraphs = ScriptPracticeAnalyzer.paragraphs(in: text)
         guard !paragraphs.isEmpty else { return nil }
-        let safeIndex = paragraphs.indices.contains(selectedIndex) ? selectedIndex : 0
-        return ScriptPracticeSession(paragraphs: paragraphs, selectedIndex: safeIndex)
+        return ScriptPracticeSession(paragraphs: paragraphs)
     }
 }
 
 struct ScriptPracticeReference: Equatable {
     let text: String
-    let paragraphNumber: Int
+    let paragraphNumber: Int?
     let paragraphCount: Int
 
+    init(text: String, paragraphNumber: Int? = nil, paragraphCount: Int) {
+        self.text = text
+        self.paragraphNumber = paragraphNumber
+        self.paragraphCount = paragraphCount
+    }
+
+    var isWholeScript: Bool { paragraphNumber == nil }
+
     var title: String {
-        "自訂講稿 · 第 \(paragraphNumber) 段"
+        if let paragraphNumber {
+            return "自訂講稿 · 第 \(paragraphNumber) 段"
+        }
+        return "自訂講稿 · 完整 \(paragraphCount) 段"
     }
 }
 
@@ -48,6 +57,15 @@ struct ScriptSpeechComparison: Equatable {
         }
         return "先抓住兩個核心詞，不用急著一次說完整段。"
     }
+}
+
+struct ScriptParagraphFeedback: Identifiable, Equatable {
+    let paragraph: ScriptParagraph
+    let spokenExcerpt: String
+    let comparison: ScriptSpeechComparison
+    let suggestion: String
+
+    var id: Int { paragraph.id }
 }
 
 enum ScriptPracticeAnalyzer {
@@ -106,6 +124,74 @@ enum ScriptPracticeAnalyzer {
     static func recognitionHints(from text: String, language: PracticeLanguage) -> [String] {
         let chunks = contentChunks(in: text, language: language)
         return Array(chunks.filter { !$0.isEmpty }.prefix(20))
+    }
+
+    static func paragraphFeedback(
+        paragraphs: [ScriptParagraph],
+        spoken: String,
+        language: PracticeLanguage
+    ) -> [ScriptParagraphFeedback] {
+        paragraphs.map { paragraph in
+            let comparison = compare(
+                reference: paragraph.text,
+                spoken: spoken,
+                language: language
+            )
+            let excerpt = proportionalExcerpt(
+                for: paragraph,
+                among: paragraphs,
+                spoken: spoken
+            )
+            let suggestion: String
+            if let missingKeyword = comparison.missingKeywords.first {
+                suggestion = "先補回「\(missingKeyword)」，再把這段重點說完整。"
+            } else if comparison.coverage < 60 {
+                suggestion = "先抓住開頭和結論，不用急著逐字說完。"
+            } else if comparison.coverage < 85 {
+                suggestion = "主要內容有保留，放慢一點讓關鍵詞更清楚。"
+            } else if paragraph.id == paragraphs.first?.id {
+                suggestion = "開場重點很完整；第一句後留半拍會更從容。"
+            } else if paragraph.id == paragraphs.last?.id {
+                suggestion = "收尾很完整；把最後一句放慢一點會更有力量。"
+            } else {
+                suggestion = "核心資訊很完整；在轉折前留一個自然停頓。"
+            }
+            return ScriptParagraphFeedback(
+                paragraph: paragraph,
+                spokenExcerpt: excerpt,
+                comparison: comparison,
+                suggestion: suggestion
+            )
+        }
+    }
+
+    private static func proportionalExcerpt(
+        for paragraph: ScriptParagraph,
+        among paragraphs: [ScriptParagraph],
+        spoken: String
+    ) -> String {
+        guard !spoken.isEmpty,
+              let paragraphIndex = paragraphs.firstIndex(of: paragraph) else {
+            return spoken
+        }
+        let weights = paragraphs.map { max(1, $0.text.count) }
+        let totalWeight = max(1, weights.reduce(0, +))
+        let lowerWeight = weights.prefix(paragraphIndex).reduce(0, +)
+        let upperWeight = lowerWeight + weights[paragraphIndex]
+        let characters = Array(spoken)
+        let lower = min(
+            characters.count,
+            Int((Double(lowerWeight) / Double(totalWeight) * Double(characters.count)).rounded(.down))
+        )
+        let upper = min(
+            characters.count,
+            max(
+                lower + 1,
+                Int((Double(upperWeight) / Double(totalWeight) * Double(characters.count)).rounded(.up))
+            )
+        )
+        return String(characters[lower..<upper])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func comparisonUnits(

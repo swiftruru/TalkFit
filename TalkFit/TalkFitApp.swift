@@ -18,23 +18,41 @@ struct TalkFitApp: App {
         let container = Self.makeModelContainer()
         modelContainer = container
         let historyStore = PracticeHistoryStore(modelContext: container.mainContext)
-        _model = State(initialValue: TalkFitModel(historyStore: historyStore))
+        let recordingArchiveStore = try? RecordingArchiveStore(
+            modelContext: container.mainContext
+        )
+        let appModel = TalkFitModel(
+            historyStore: historyStore,
+            recordingArchiveStore: recordingArchiveStore
+        )
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-seedRecordingArchiveQA") {
+            appModel.loadRecordingArchiveQAFixtures()
+        }
+#endif
+        _model = State(initialValue: appModel)
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(model: model)
+            TalkFitRootView(model: model)
         }
         .modelContainer(modelContainer)
     }
 
     private static func makeModelContainer() -> ModelContainer {
         do {
-            return try ModelContainer(for: PracticeHistoryRecord.self)
+            return try ModelContainer(
+                for: PracticeHistoryRecord.self,
+                RecordingArchiveSessionRecord.self,
+                RecordingArchiveAttemptRecord.self
+            )
         } catch {
             let memoryOnly = ModelConfiguration(isStoredInMemoryOnly: true)
             return try! ModelContainer(
                 for: PracticeHistoryRecord.self,
+                RecordingArchiveSessionRecord.self,
+                RecordingArchiveAttemptRecord.self,
                 configurations: memoryOnly
             )
         }

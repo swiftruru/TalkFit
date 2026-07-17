@@ -83,6 +83,28 @@ struct PrimaryActionStyle: ButtonStyle {
     }
 }
 
+struct SecondaryActionStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(isEnabled ? TalkFitTheme.pine : TalkFitTheme.sage)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(.horizontal, 16)
+            .background(
+                Capsule()
+                    .fill(TalkFitTheme.paperLight.opacity(0.9))
+            )
+            .overlay {
+                Capsule()
+                    .stroke(TalkFitTheme.moss.opacity(0.42), lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
+    }
+}
+
 struct NotebookSection<Content: View>: View {
     let title: String
     @ViewBuilder var content: Content

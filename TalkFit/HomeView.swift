@@ -71,14 +71,18 @@ struct HomeView: View {
                         .font(.system(.title2, design: .serif, weight: .bold))
                         .layoutPriority(1)
                     Spacer()
-                    Text("30 秒")
+                    Text(model.scriptPractice.map { "\($0.paragraphs.count) 段" } ?? "30 秒")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(TalkFitTheme.clay)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(TalkFitTheme.clay.opacity(0.12), in: Capsule())
                 }
-                Text(model.activePrompt)
+                Text(
+                    model.usesScriptPractice
+                        ? "先完整說完講稿；錄完後可以查看每一段的建議，再挑一段加強。"
+                        : model.activePrompt
+                )
                     .font(.body)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
@@ -159,9 +163,8 @@ struct HomeView: View {
     }
 
     private var startButtonTitle: String {
-        if let session = model.scriptPractice,
-           let paragraph = session.selectedParagraph {
-            return "開始講稿第 \(paragraph.number) 段"
+        if model.scriptPractice != nil {
+            return "開始完整講稿練習"
         }
         return model.selectedLanguage == .english
             ? "開始 English・\(model.selectedContext.shortName)練習"
@@ -170,8 +173,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var scriptPracticeRow: some View {
-        if let session = model.scriptPractice,
-           let paragraph = session.selectedParagraph {
+        if let session = model.scriptPractice {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     Image(systemName: "doc.text.fill")
@@ -181,9 +183,9 @@ struct HomeView: View {
                         .background(TalkFitTheme.clay.opacity(0.1), in: Circle())
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("講稿第 \(paragraph.number)／\(session.paragraphs.count) 段")
+                        Text("完整講稿 · \(session.paragraphs.count) 段")
                             .font(.subheadline.weight(.semibold))
-                        Text(paragraph.text)
+                        Text(session.fullText)
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
                             .lineLimit(3)
@@ -192,7 +194,7 @@ struct HomeView: View {
                 }
 
                 HStack(spacing: 12) {
-                    Button("更換段落", action: showScriptPractice)
+                    Button("編輯講稿", action: showScriptPractice)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(TalkFitTheme.pine)
                         .frame(minHeight: 44)
@@ -216,7 +218,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("練自己的講稿")
                             .font(.subheadline.weight(.semibold))
-                        Text("貼上內容，選一段比較實際說法")
+                        Text("先完整錄一次，再逐段查看建議")
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
                     }
@@ -230,7 +232,7 @@ struct HomeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint("貼上講稿並選擇這次要練的段落")
+            .accessibilityHint("貼上完整講稿，錄完後可逐段重練")
             .accessibilityIdentifier("home.script")
         }
     }
@@ -466,7 +468,7 @@ private struct PracticeHistoryList: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(TalkFitTheme.ink)
                             Text(model.isHistoryEnabled
-                                 ? "完成練習與重練後，這裡會留下不含錄音與逐字稿的摘要。"
+                                 ? "完成並收下真實練習後，摘要與錄音會留在這台 iPhone。"
                                  : "由你選擇是否保存；示範結果永遠不會寫入。")
                                 .font(.caption)
                                 .foregroundStyle(TalkFitTheme.ink.opacity(0.58))

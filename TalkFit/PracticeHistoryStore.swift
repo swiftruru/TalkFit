@@ -145,7 +145,7 @@ struct PracticeHistorySummary: Identifiable, Equatable {
         if stabilityImprovement > 0 {
             return "穩定度增加 \(stabilityImprovement)%"
         }
-        return "完成一次專注重練"
+        return "完成一次專注練習"
     }
 
     var dateLabel: String {
@@ -163,7 +163,10 @@ struct PracticeHistorySummary: Identifiable, Equatable {
 
 @MainActor
 final class PracticeHistoryStore {
-    private static let preferenceKey = "talkfit.practice-history.preference.v1"
+    // Audio was added in v2. A previous "enabled" value only authorized
+    // metric summaries, so it must not silently become recording consent.
+    private static let preferenceKey = "talkfit.practice-history.preference.v2"
+    private static let legacyPreferenceKey = "talkfit.practice-history.preference.v1"
 
     private let modelContext: ModelContext
     private let defaults: UserDefaults
@@ -175,6 +178,9 @@ final class PracticeHistoryStore {
 
     var preference: HistoryPreference {
         guard let rawValue = defaults.string(forKey: Self.preferenceKey) else {
+            if defaults.string(forKey: Self.legacyPreferenceKey) == HistoryPreference.disabled.rawValue {
+                return .disabled
+            }
             return .undecided
         }
         return HistoryPreference(rawValue: rawValue) ?? .undecided
@@ -215,6 +221,37 @@ final class PracticeHistoryStore {
             afterStability: after.stability,
             beforeRhythmIssueCount: before.rhythmSummary.issueCount,
             afterRhythmIssueCount: after.rhythmSummary.issueCount
+        )
+        modelContext.insert(record)
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            return false
+        }
+    }
+
+    @discardableResult
+    func save(_ result: PracticeResult, completedAt: Date = .now) -> Bool {
+        guard preference == .enabled, result.source == .recognized else {
+            return false
+        }
+
+        let record = PracticeHistoryRecord(
+            completedAt: completedAt,
+            language: result.language,
+            promptIdentifier: result.historyPromptIdentifier,
+            promptTitle: result.historyPromptTitle,
+            duration: result.duration,
+            beforeFillerCount: result.fillerTotal,
+            afterFillerCount: result.fillerTotal,
+            beforePace: result.pace,
+            afterPace: result.pace,
+            beforeStability: result.stability,
+            afterStability: result.stability,
+            beforeRhythmIssueCount: result.rhythmSummary.issueCount,
+            afterRhythmIssueCount: result.rhythmSummary.issueCount
         )
         modelContext.insert(record)
         do {
