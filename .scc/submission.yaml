@@ -2,40 +2,134 @@ event: iOS AI Summer Camp 2026
 name: TalkFit
 team_name: 小狐狸
 category: education
-intro: TalkFit is a warm, low-pressure iOS speaking coach for students,
-  presenters, interview candidates, and anyone who wants to communicate more
-  clearly. After a short recording, TalkFit uses Apple Speech to create a
-  readable transcript and analyzes filler words, speaking pace, pauses, and the
-  segment that needs the most attention. Instead of repeating the entire speech,
-  the user immediately retries one focused segment and sees a clear
-  before-and-after comparison. TalkFit supports Traditional Chinese and English,
-  uses explainable on-device rules, does not save recordings or transcripts, and
-  includes a reliable demo fallback when speech recognition is unavailable.
+intro: |
+  TalkFit — Let every time you speak become visible growth.
+
+  Many people know that a presentation, interview answer, or self-introduction did not sound quite right, but they do not know what to improve first. Listening to an entire recording again takes time, while a transcript or a score alone rarely tells someone what to do next. TalkFit turns that vague frustration into one small, practical action: find the segment that matters most, retry it immediately, and make the improvement visible.
+
+  TalkFit is a warm, low-pressure iOS speaking coach for students, presenters, interview candidates, and anyone who wants to communicate more clearly in Traditional Chinese or English. It is not a web recorder, a social network, or a medical diagnosis tool. It is a private practice space designed to help users build confidence through short, focused repetitions.
+
+  THE CORE EXPERIENCE
+
+  1. Choose a real speaking situation — self-introduction, presentation, class report, interview answer, or a section from a complete script.
+  2. Record naturally while seeing elapsed time, a live waveform, partial transcription, recently detected filler evidence, and sentence-level pace guidance.
+  3. Receive one plain-language priority instead of a crowded analytics dashboard.
+  4. Open the exact segment worth improving and follow one concrete coaching cue.
+  5. Retry only that segment rather than repeating the entire speech.
+  6. Compare the before and after results through filler count, pace, rhythm reminders, and stability.
+
+  WHY TALKFIT FEELS DIFFERENT
+
+  TalkFit does not treat speaking practice as a test. There are no leaderboards, streak pressure, or intimidating scores. Its “Garden Notebook” visual system uses warm fibrous paper, pine and moss greens, small clay-orange annotations, and growing leaves to make practice feel quiet, tactile, and encouraging. Progress is presented as something that can grow, not something that must be perfect on the first try.
+
+  EXPLAINABLE, LOCAL FEEDBACK
+
+  The app uses Apple Speech for transcription and transparent on-device rules for analysis. Traditional Chinese pace is measured in readable characters per minute; English pace is measured in words per minute. TalkFit also reviews sentence timing, overly short or long pauses, sudden acceleration, filler density, and overall delivery stability. The result is an understandable recommendation, not an unexplained AI verdict.
+
+  Apple’s final transcript may remove short hesitation sounds such as “嗯,” “呃,” “um,” or “uh” to produce cleaner text. TalkFit therefore keeps readable text and filler evidence as two separate tracks. Partial results, alternative transcriptions, timestamps, and confidence signals can preserve evidence that the final transcript omits. When a filler was heard but does not belong in the readable sentence, the report can show it separately instead of inserting artificial words into the transcript. Users can also maintain separate Traditional Chinese and English filler libraries for their own speaking habits.
+
+  BUILT FOR REAL PRACTICE
+
+  Users can switch between Traditional Chinese and English, choose context-specific prompts, or paste a complete script and practice it section by section. Script practice checks content coverage with simple local matching, highlights a few ideas that may have been missed, and avoids pretending to understand meaning with a hidden model. A Home Screen widget offers a quick path back into practice when an important conversation is approaching.
+
+  PRIVATE BY DESIGN
+
+  TalkFit has no proprietary cloud backend for speech content or analysis. When supported by the device, the app requests on-device Apple speech recognition; actual recognition availability is determined by Apple and the user’s device. Practice history is optional. If enabled, summaries and the user’s real audio recordings can be saved locally on that iPhone for replay. Scripts, transcripts, sentence content, and filler timestamps are not written into the archive. Demo sessions are never saved, and users can stop future saving or delete stored sessions at any time.
+
+  RELIABLE WHEN THE DEMO ENVIRONMENT IS NOT
+
+  Microphone permission, speech availability, and Simulator behavior can be unpredictable. TalkFit never replaces meaningful user speech with an unrelated sample transcript. If no usable recognition result exists, it explains what happened and offers either another recording or an explicitly labeled demonstration. A deterministic sample service can still complete the full record → report → retry → comparison journey without masquerading as real analysis.
+
+  TalkFit’s most important moment is simple: after speaking once, the user knows exactly what to retry — and a minute later can see that the second attempt is genuinely clearer. Instead of asking people to “speak better,” TalkFit gives them a small place to begin.
 localizations:
   en:
     name: TalkFit
-    intro: TalkFit is a warm, low-pressure iOS speaking coach for students,
-      presenters, interview candidates, and anyone who wants to communicate more
-      clearly. After a short recording, TalkFit uses Apple Speech to create a
-      readable transcript and analyzes filler words, speaking pace, pauses, and
-      the segment that needs the most attention. Instead of repeating the entire
-      speech, the user immediately retries one focused segment and sees a clear
-      before-and-after comparison. TalkFit supports Traditional Chinese and
-      English, uses explainable on-device rules, does not save recordings or
-      transcripts, and includes a reliable demo fallback when speech recognition
-      is unavailable.
+    intro: |
+      TalkFit — Let every time you speak become visible growth.
+
+      Many people know that a presentation, interview answer, or self-introduction did not sound quite right, but they do not know what to improve first. Listening to an entire recording again takes time, while a transcript or a score alone rarely tells someone what to do next. TalkFit turns that vague frustration into one small, practical action: find the segment that matters most, retry it immediately, and make the improvement visible.
+
+      TalkFit is a warm, low-pressure iOS speaking coach for students, presenters, interview candidates, and anyone who wants to communicate more clearly in Traditional Chinese or English. It is not a web recorder, a social network, or a medical diagnosis tool. It is a private practice space designed to help users build confidence through short, focused repetitions.
+
+      THE CORE EXPERIENCE
+
+      1. Choose a real speaking situation — self-introduction, presentation, class report, interview answer, or a section from a complete script.
+      2. Record naturally while seeing elapsed time, a live waveform, partial transcription, recently detected filler evidence, and sentence-level pace guidance.
+      3. Receive one plain-language priority instead of a crowded analytics dashboard.
+      4. Open the exact segment worth improving and follow one concrete coaching cue.
+      5. Retry only that segment rather than repeating the entire speech.
+      6. Compare the before and after results through filler count, pace, rhythm reminders, and stability.
+
+      WHY TALKFIT FEELS DIFFERENT
+
+      TalkFit does not treat speaking practice as a test. There are no leaderboards, streak pressure, or intimidating scores. Its “Garden Notebook” visual system uses warm fibrous paper, pine and moss greens, small clay-orange annotations, and growing leaves to make practice feel quiet, tactile, and encouraging. Progress is presented as something that can grow, not something that must be perfect on the first try.
+
+      EXPLAINABLE, LOCAL FEEDBACK
+
+      The app uses Apple Speech for transcription and transparent on-device rules for analysis. Traditional Chinese pace is measured in readable characters per minute; English pace is measured in words per minute. TalkFit also reviews sentence timing, overly short or long pauses, sudden acceleration, filler density, and overall delivery stability. The result is an understandable recommendation, not an unexplained AI verdict.
+
+      Apple’s final transcript may remove short hesitation sounds such as “嗯,” “呃,” “um,” or “uh” to produce cleaner text. TalkFit therefore keeps readable text and filler evidence as two separate tracks. Partial results, alternative transcriptions, timestamps, and confidence signals can preserve evidence that the final transcript omits. When a filler was heard but does not belong in the readable sentence, the report can show it separately instead of inserting artificial words into the transcript. Users can also maintain separate Traditional Chinese and English filler libraries for their own speaking habits.
+
+      BUILT FOR REAL PRACTICE
+
+      Users can switch between Traditional Chinese and English, choose context-specific prompts, or paste a complete script and practice it section by section. Script practice checks content coverage with simple local matching, highlights a few ideas that may have been missed, and avoids pretending to understand meaning with a hidden model. A Home Screen widget offers a quick path back into practice when an important conversation is approaching.
+
+      PRIVATE BY DESIGN
+
+      TalkFit has no proprietary cloud backend for speech content or analysis. When supported by the device, the app requests on-device Apple speech recognition; actual recognition availability is determined by Apple and the user’s device. Practice history is optional. If enabled, summaries and the user’s real audio recordings can be saved locally on that iPhone for replay. Scripts, transcripts, sentence content, and filler timestamps are not written into the archive. Demo sessions are never saved, and users can stop future saving or delete stored sessions at any time.
+
+      RELIABLE WHEN THE DEMO ENVIRONMENT IS NOT
+
+      Microphone permission, speech availability, and Simulator behavior can be unpredictable. TalkFit never replaces meaningful user speech with an unrelated sample transcript. If no usable recognition result exists, it explains what happened and offers either another recording or an explicitly labeled demonstration. A deterministic sample service can still complete the full record → report → retry → comparison journey without masquerading as real analysis.
+
+      TalkFit’s most important moment is simple: after speaking once, the user knows exactly what to retry — and a minute later can see that the second attempt is genuinely clearer. Instead of asking people to “speak better,” TalkFit gives them a small place to begin.
   zh-TW:
     name: TalkFit｜綠園練習簿
-    intro: TalkFit 是一款溫暖、低壓力的 iOS 私人口說教練，適合準備課堂報告、自我介紹、
-      面試回答、簡報與公開發言的學生和工作者。使用者錄下一段短講後，TalkFit 會透過 Apple Speech
-      產生逐字稿，分析贅字、語速、停頓與最需要改善的片段，讓使用者不必 重說整篇，而是直接針對最關鍵的一小段立即重練，最後用前後比較看見贅字減少、
-      節奏與穩定度的進步。App 支援繁體中文與英文，採用可解釋的本機規則，不保存錄音 與逐字稿，並在語音辨識不可用時提供清楚、不冒充真實內容的示範備援。
+    intro: |
+      TalkFit｜讓每一次開口，都成為看得見的成長。
+
+      我們經常知道自己「好像講得不夠清楚」，卻不知道究竟該先改哪裡。重新聽完整段錄音很花時間，只有逐字稿或一個分數，也很難回答下一次到底要怎麼說。TalkFit 把模糊的挫折縮小成一個立即可做的行動：找出最值得改善的一小段、馬上重練，然後清楚看見前後真的不一樣。
+
+      TalkFit 是一款溫暖、低壓力的 iOS 私人口說教練，為準備自我介紹、課堂報告、面試回答、簡報與公開發言的學生、工作者與講者而設計。它不是網頁版錄音工具、不是社群競賽，也不是醫療診斷或治療服務；它是一座只屬於自己的練習小園地，讓使用者透過短而專注的重複練習，慢慢建立表達自信。
+
+      【從開口到看見進步】
+
+      1. 選擇真實情境：30 秒自我介紹、簡報、課堂報告、面試回答，或貼上完整講稿後挑選段落。
+      2. 自然錄音：畫面同步顯示時間、真實音量波形、即時逐字稿、剛剛捕捉到的贅字證據，以及最新一句的語速提醒。
+      3. 看見一個最重要的建議：TalkFit 不用密密麻麻的儀表板轟炸使用者，而是先說清楚現在最值得改善什麼。
+      4. 點開關鍵片段：保留原句，搭配一個具體、能立即執行的教練提醒。
+      5. 只重練這一小段：不必因為一句話卡住，就把整篇重新講一次。
+      6. 比較前後差異：從贅字數、語速、節奏提醒與穩定度，確認第二次是否真的更清楚。
+
+      【一位不製造壓力的教練】
+
+      TalkFit 不把口說練習做成考試。這裡沒有排行榜、連續打卡壓力，也不會用冰冷分數宣告一段話「好或不好」。「綠園練習簿」視覺以溫暖纖維紙、松綠、苔綠、嫩芽與少量陶土橘，營造安靜、私密又有觸感的練習空間。成長不是一次完美，而是每次願意再說一遍，都長出一點新的自信。
+
+      【可理解、可解釋的本機分析】
+
+      App 使用 Apple Speech 產生逐字稿，再以透明、可重現的本機規則分析表達。中文使用「字／分鐘」，英文使用「詞／分鐘」計算語速；另外觀察逐句時間、句尾停頓過短或過長、突然加速、贅字密度與整體穩定度。TalkFit 給出的不是來歷不明的 AI 判決，而是使用者看得懂、也知道如何改善的具體線索。
+
+      Apple 最終逐字稿為了讓文字更流暢，可能省略「嗯」「呃」「um」「uh」等短暫語氣聲。因此 TalkFit 將「可讀文字」與「贅字證據」分成兩條軌道保存：最終辨識負責產生乾淨、可閱讀的正文；partial results、候選辨識、segment 時間戳與 confidence 則負責蒐集可能被省略的贅字。同一個聲音會依時間去重；若聲音證據曾捕捉到、但不適合硬塞回正文，報告會在「聲音裡還聽到」獨立呈現。使用者也能分別調整中文與英文贅字庫，加入自己真正的口頭習慣。
+
+      【為真實簡報與講稿而設計】
+
+      使用者可以切換繁體中文與英文，依不同情境取得適合的題目與舒服語速建議，也能貼上自己的完整講稿、分段練習。講稿模式以簡單清楚的本機比對呈現內容涵蓋，提醒可能漏掉的幾個關鍵詞；它不要求逐字背誦，也不把字詞比對包裝成神奇的語意理解。主畫面 Widget 則讓使用者在重要開口前，用更短的路徑回到練習。
+
+      【隱私由使用者決定】
+
+      TalkFit 沒有用來接收語音內容或分析結果的自有雲端後端。裝置支援時會優先要求 Apple 裝置端語音辨識；實際辨識方式與可用性仍由 Apple 和使用者的裝置決定。練習紀錄預設由使用者選擇是否開啟；開啟後，摘要與使用者的真實錄音可以只保存在這台 iPhone，方便日後回聽。講稿、逐字稿、逐句內容與贅字時間戳不會寫入錄音紀錄；示範練習永遠不會保存。使用者可隨時停止新增紀錄、刪除單次練習或清除保存內容。
+
+      【辨識失敗也不冒充使用者】
+
+      麥克風權限、Apple Speech 服務與 Simulator 狀況並不永遠穩定。TalkFit 不會在使用者真實錄音後，偷偷用「我是小安」等無關範例取代他說過的話。只要有可用的 partial 或真實文字，就保留原內容；完全無法取得辨識結果時，會坦白說明並提供重新錄音，或由使用者主動選擇明確標示的示範練習。確定性的備援 Service 可以可靠走完「錄音 → 報告 → 重練 → 前後比較」，但絕不假裝那是真實分析。
+
+      TalkFit 最重要的時刻很簡單：使用者說完一次後，知道自己下一步該重練哪一句；不到一分鐘，又能親眼看見第二次變得更直接、更穩、更清楚。與其只叫人「說好一點」，TalkFit 給每個人一個真正可以開始的地方。
 video_url: https://youtube.com/watch?v=xxxx
-poster_site: https://talkfit-garden.swiftruru.chatgpt.site/
+poster_site: https://talkfit.sandy-domains.workers.dev/
 icon: https://olnyshvsfziowerjrmhq.supabase.co/storage/v1/object/public/submissions/604af849-7886-4455-8a49-07f3bf8e78ad/submissions/7b617184-3fd4-442c-a788-40e52f8aeead/icon-icon.png
 screenshots:
-  - .scc/media/screenshots/01-home.png
-  - .scc/media/screenshots/02-recording.png
-  - .scc/media/screenshots/03-report.png
-  - .scc/media/screenshots/04-retry.png
-  - .scc/media/screenshots/05-comparison.png
+  - .scc/media/screenshots/01-home-v2.png
+  - .scc/media/screenshots/02-recording-v2.png
+  - .scc/media/screenshots/03-report-v2.png
+  - .scc/media/screenshots/04-comparison-v2.png
+  - .scc/media/screenshots/05-history-v2.png

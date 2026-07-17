@@ -587,10 +587,10 @@ final class TalkFitModel {
             )
         }
         if round == .retry {
-            return TalkFitFixtures.scriptCapture(
+            return TalkFitFixtures.sampleCapture(
                 for: .retry,
                 language: selectedLanguage,
-                script: retryPrompt,
+                context: selectedContext,
                 fillerWords: activeFillerWords
             )
         }

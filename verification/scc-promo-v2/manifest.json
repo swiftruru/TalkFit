@@ -1,0 +1,47 @@
+{
+  "canvas": { "width": 1290, "height": 2796, "format": "png" },
+  "device": "iPhone 17 Pro Simulator",
+  "os": "iOS 26.5",
+  "items": [
+    {
+      "order": 1,
+      "screen": "home",
+      "headline": "從一次重要的開口，開始練習",
+      "subhead": "中文、英文、面試、簡報與完整講稿都能練",
+      "source": "raw/01-home.jpg",
+      "output": "final/01-home.png"
+    },
+    {
+      "order": 2,
+      "screen": "recording",
+      "headline": "開口時，就知道自己的節奏",
+      "subhead": "即時逐字稿、贅字證據與逐句語速一起出現",
+      "source": "raw/02-recording.jpg",
+      "output": "final/02-recording.png"
+    },
+    {
+      "order": 3,
+      "screen": "report",
+      "headline": "不必重說整篇，先改最關鍵的一段",
+      "subhead": "TalkFit 找出可改善片段，給你一個具體提醒",
+      "source": "raw/03-report.jpg",
+      "output": "final/03-report.png"
+    },
+    {
+      "order": 4,
+      "screen": "comparison",
+      "headline": "進步不是感覺，前後清楚看見",
+      "subhead": "比較贅字、語速與穩定度的真實改變",
+      "source": "raw/05-comparison.jpg",
+      "output": "final/04-comparison.png"
+    },
+    {
+      "order": 5,
+      "screen": "recording-history",
+      "headline": "想回聽的練習，由你決定保存",
+      "subhead": "短講與完整講稿分開整理，不保存逐字稿與講稿",
+      "source": "raw/06-history.jpg",
+      "output": "final/05-history.png"
+    }
+  ]
+}

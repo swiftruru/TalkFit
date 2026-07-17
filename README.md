@@ -17,7 +17,7 @@
   <img alt="Version 1.0" src="https://img.shields.io/badge/Version-1.0-A7673F?style=flat-square">
   <img alt="Local First" src="https://img.shields.io/badge/Privacy-Local--First-557052?style=flat-square&logo=icloud&logoColor=white">
   <img alt="Apple Speech" src="https://img.shields.io/badge/Speech-Apple%20Native-879B4D?style=flat-square&logo=apple&logoColor=white">
-  <img alt="34 Tests" src="https://img.shields.io/badge/Tests-34%20Passing-2F6B45?style=flat-square&logo=checkmarx&logoColor=white">
+  <img alt="43 Tests" src="https://img.shields.io/badge/Tests-43%20Passing-2F6B45?style=flat-square&logo=checkmarx&logoColor=white">
   <a href="https://github.com/swiftruru/TalkFit/stargazers"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/swiftruru/TalkFit?style=flat-square&color=9A713F&logo=github"></a>
   <a href="https://github.com/swiftruru/TalkFit/forks"><img alt="GitHub Forks" src="https://img.shields.io/github/forks/swiftruru/TalkFit?style=flat-square&color=6C8050&logo=github"></a>
 </p>
@@ -44,11 +44,40 @@ TalkFit 是一款溫暖、低壓力的私人表達教練。使用者可以用繁
 
 此 repository 也包含 `website/` 官方產品網站，提供產品介紹、TestFlight 候補名單、支援中心、隱私權政策與使用條款。
 
-## 畫面預覽
+## TalkFit 體驗一覽
 
-| 首頁 | 練習報告 | 前後比較 |
-| --- | --- | --- |
-| ![TalkFit 首頁](verification/padding-audit/after-home.png) | ![TalkFit 練習報告](verification/padding-audit/after-report.png) | ![TalkFit 前後比較](verification/padding-audit/after-comparison.png) |
+<p align="center">
+  <strong>找到最值得改善的一小段，立即重練，親眼看見自己真的進步。</strong><br>
+  從第一次開口到保存成長，TalkFit 把完整練習收進一條安靜、清楚的路徑。
+</p>
+
+<p align="center">
+  <a href="https://talkfit.sandy-domains.workers.dev/">瀏覽 TalkFit 官方產品網站</a>
+</p>
+
+<table>
+  <tr>
+    <td width="20%" align="center"><strong>01<br>選一個情境</strong></td>
+    <td width="20%" align="center"><strong>02<br>看見當下節奏</strong></td>
+    <td width="20%" align="center"><strong>03<br>只改最關鍵處</strong></td>
+    <td width="20%" align="center"><strong>04<br>看見真的進步</strong></td>
+    <td width="20%" align="center"><strong>05<br>只留在這台 iPhone</strong></td>
+  </tr>
+  <tr>
+    <td><img src="verification/scc-promo-v2/final/01-home.png" alt="TalkFit 首頁：從一次重要的開口開始練習"></td>
+    <td><img src="verification/scc-promo-v2/final/02-recording.png" alt="TalkFit 錄音：即時逐字稿、贅字證據與逐句語速"></td>
+    <td><img src="verification/scc-promo-v2/final/03-report.png" alt="TalkFit 報告：找出最值得改善的關鍵片段"></td>
+    <td><img src="verification/scc-promo-v2/final/04-comparison.png" alt="TalkFit 前後比較：看見贅字、語速與穩定度進步"></td>
+    <td><img src="verification/scc-promo-v2/final/05-history.png" alt="TalkFit 本機錄音紀錄：由使用者決定是否保存"></td>
+  </tr>
+  <tr>
+    <td valign="top">選擇中文或英文，以及自我介紹、簡報、課堂報告、面試或完整講稿。</td>
+    <td valign="top">錄音時同步掌握逐字稿、真實音量、贅字線索與最新一句語速。</td>
+    <td valign="top">不重說整篇；先取得一個清楚優先順序，再重練最重要的一段。</td>
+    <td valign="top">用贅字、語速、節奏提醒與穩定度，比較前後真正的改變。</td>
+    <td valign="top">可選擇把摘要與真實錄音留在裝置，隨時回聽、停止保存或刪除。</td>
+  </tr>
+</table>
 
 ## 核心流程
 
@@ -70,7 +99,7 @@ flowchart LR
 5. 直接重練最需要改善的一小段，不要求使用者重說整篇。
 6. 以贅字數量、語速與穩定度呈現前後差異。
 7. 在錄音、分析、報告、重練與比較頁提供符合情境的返回路徑，可能遺失資料時會先顯示確認提示。
-8. 完成真實練習時，由使用者決定是否只在本機保存不含錄音與逐字稿的進步摘要。
+8. 完成真實練習時，由使用者決定是否只在本機保存進步摘要與真實錄音；講稿、逐字稿、逐句內容與贅字時間戳不會寫入紀錄。
 
 ## 主要功能
 
@@ -103,7 +132,7 @@ flowchart LR
 - 可預覽並選擇這次要練的段落，首頁題目與主要 CTA 會同步改成「講稿第 N 段」。
 - 選取段落會加入 Apple Speech contextual hints，協助專有名詞與講稿內容辨識；辨識結果仍以使用者實際說出的文字為準。
 - 報告以可解釋的本機字詞涵蓋規則顯示「內容涵蓋」百分比，並列出最多三個可補回的關鍵詞；不要求逐字背誦，也不把它包裝成語意正確率。
-- 講稿只存在目前 App 使用期間。歷史若已開啟，也只保存「自訂講稿」與前後指標，不會寫入講稿原文、錄音或逐字稿。
+- 講稿只存在目前 App 使用期間。歷史若已開啟，會保存「自訂講稿」、前後指標與這次的真實錄音，但不會寫入講稿原文、逐字稿、逐句內容或贅字時間戳。
 - 示範／語音辨識備援會從使用者選取的段落生成一致結果，不會突然換成無關的預設自我介紹。
 
 ### 動態贅字庫
@@ -153,14 +182,14 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 - 示範重練結果會明確呈現贅字下降與穩定度提升，確保完整流程不會停在死路。
 - 第一次示範刻意包含過短停頓、較長停頓與突然加速；重練後改為自然句尾停頓，前後比較會顯示減少的節奏提醒數量。
 
-### 可選擇開啟的本機練習紀錄
+### 可選擇開啟的本機練習摘要與錄音紀錄
 
 - 歷史紀錄預設關閉；第一次完成真實練習並按下「收下這次進步」時，App 才會清楚詢問是否開啟。
-- 使用 SwiftData 只保存完成日期、練習語言、題目識別與前後的贅字數、語速、穩定度、節奏提醒數。
+- 使用 SwiftData 保存完成日期、練習語言、題目識別與前後的贅字數、語速、穩定度、節奏提醒數；真實音檔則只留在 App 的本機資料目錄。
 - 自訂講稿以固定識別 `custom-script` 與「自訂講稿」標題保存，不保存段落原文。
-- 不保存錄音、逐字稿、逐句內容、贅字詞彙或時間戳。
+- 只有使用者主動開啟保存後，才會留下真實練習錄音；不保存講稿、逐字稿、逐句內容、贅字詞彙或時間戳。
 - 首頁的成長摘要與最近三筆會改用真實保存資料，不再顯示預設假歷史；資料不足時顯示「累積中」。
-- 可從首頁進入「本機練習紀錄」，隨時停止新增紀錄、刪除單筆或清除全部。
+- 可從首頁進入本機紀錄，分開管理短講與完整講稿、回聽每次錄音，並隨時停止新增紀錄、刪除單筆或清除全部。
 - 示範模式、權限失敗或辨識 fallback 產生的範例結果不會寫入歷史，避免把展示資料誤當成個人成長。
 - 相同題目與語言累積至少 3 次後，使用 Swift Charts 顯示重練後的贅字、語速與穩定度長期變化。
 - 語速趨勢比較的是「離舒服區間的距離」，不會把越快誤判成越好；未滿 3 次時只顯示低壓力的葉片累積進度。
@@ -192,9 +221,9 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 | 測試 | Swift Testing、iOS Simulator unit test target |
 | 錄音 | AVFoundation、`AVAudioEngine` |
 | 語音辨識 | Speech、`SFSpeechRecognizer` |
-| 資料來源 | 單一 Observation 狀態、集中式 fixtures、裝置端偏好與本機練習摘要 |
-| App 後端 | 無；核心分析與練習摘要均在裝置端處理 |
-| 持久化 | SwiftData（選擇開啟的練習摘要）、`UserDefaults`（贅字庫差異與歷史開關） |
+| 資料來源 | 單一 Observation 狀態、集中式 fixtures、裝置端偏好、本機練習摘要與錄音紀錄 |
+| App 後端 | 無；核心分析、練習摘要與選擇保存的錄音均留在裝置端 |
+| 持久化 | SwiftData（練習摘要與錄音索引）、本機音檔、`UserDefaults`（贅字庫差異與保存開關） |
 | 官方網站 | Next.js 16 App Router、React 19、TypeScript、vinext、Vite |
 | 網站執行環境 | Cloudflare Workers；表單目前為無 D1 的非持久化展示 |
 
@@ -344,15 +373,15 @@ npm run build
 - 已在英文贅字庫新增自訂詞並確認數量立即更新。
 - 已關閉並重新啟動 App，確認英文自訂贅字仍保留於裝置。
 - 已驗證單一語言還原，以及同時清除中英文自訂差異的「還原所有語言」流程與確認提示。
-- 已加入並執行 34 個本機單元測試；除了原有的切句、語速、節奏與贅字證據，也涵蓋真實逐字稿不可被示範內容覆蓋、partial 文字保留、本機歷史隱私、示範結果排除、刪除、趨勢分組、四種情境，以及講稿分段、雙語內容涵蓋、講稿歷史最小化與穩定備援。
+- 已加入並執行 43 個本機單元測試；除了原有的切句、語速、節奏與贅字證據，也涵蓋真實逐字稿不可被示範內容覆蓋、partial 文字保留、本機歷史隱私、錄音匯入與刪除、示範結果排除、趨勢分組、四種情境，以及講稿分段、雙語內容涵蓋、講稿歷史最小化與穩定備援。
 - 主要畫面驗證證據位於 [`verification/`](verification/)；版面調整紀錄位於 [`verification/padding-audit/`](verification/padding-audit/)。
 
 ## 已知限制
 
 - 目前沒有帳號、雲端同步或後端服務；練習歷史只存在目前裝置。
-- 第一階段歷史只保存摘要，不能從紀錄重新開啟逐字稿、報告或播放錄音。
+- 本機紀錄可回聽使用者主動保存的真實錄音，但不保存逐字稿與完整報告，因此不能從紀錄重建當時的逐句分析畫面。
 - 趨勢至少需要 3 次相同題目與語言；目前尚未提供週／月篩選、趨勢區間切換或跨題目比較。
-- 關閉「保存練習摘要」只會停止新增，不會自行刪除既有資料；使用者需明確選擇單筆刪除或全部清除。
+- 關閉「保存練習摘要與錄音」只會停止新增，不會自行刪除既有資料；使用者需明確選擇單筆刪除或全部清除。
 - 自訂贅字庫只保存在目前裝置，不會跨裝置同步。
 - Simulator 的麥克風與 Speech framework 行為可能依主機環境而異，正式裝置仍需重新確認權限與辨識品質。
 - Apple Speech 仍可能完全忽略非常短、音量較低或與前後字黏在一起的語氣聲；partial／候選證據、自訂 language model 與 contextual hints 能改善蒐集機會，但無法保證捕捉每一次贅字。
@@ -378,6 +407,6 @@ npm run build
 
 ## 隱私
 
-iOS App 沒有 TalkFit 自有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。使用者選擇開啟歷史後，SwiftData 只在裝置保存日期、語言與前後指標摘要；不保存錄音、逐字稿、逐句內容或贅字時間戳。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
+iOS App 沒有 TalkFit 自有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。只有使用者主動開啟保存後，App 才會在這台 iPhone 留下日期、語言、前後指標摘要與真實錄音，供日後回聽；講稿、逐字稿、逐句內容與贅字時間戳不會寫入紀錄，示範練習也永遠不會保存。使用者可隨時停止新增或刪除既有錄音。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
 
 官方網站目前未啟用表單資料庫。TestFlight 與隱私表單只在瀏覽器內展示互動，不會傳送或保存 Email、隱私要求、App 錄音與逐字稿。詳細說明見網站的隱私權政策頁面。
