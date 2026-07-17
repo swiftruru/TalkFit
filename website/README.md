@@ -14,6 +14,31 @@ npm run dev
 ## 環境變數
 
 - `WAITLIST_WEBHOOK_URL`（選填）：接收 `{ email, confirmUrl, template }` 的伺服器端寄信 webhook。未設定時，名單仍會以 `pending` 狀態保存在 D1，正式寄信服務啟用後再完成確認。
+- `TALKFIT_D1_DATABASE_ID`（Cloudflare 直接部署必填）：同一個 Cloudflare account 內的 D1 database UUID。
+- `TALKFIT_D1_DATABASE_NAME`（選填）：D1 database 名稱，預設為 `site-creator-d1`。
+
+## Cloudflare Workers 部署
+
+這是 vinext full-stack Worker，不應使用舊的 `@cloudflare/next-on-pages`。Cloudflare Workers Builds 請設定：
+
+- Root directory：`website`
+- Production branch：`main`
+- Build command：留空
+- Deploy command：`npx vinext deploy`
+
+首次部署前，先在同一個 Cloudflare account 建立 D1：
+
+```bash
+npx wrangler d1 create site-creator-d1
+```
+
+將指令回傳的 `database_id` 存成 Workers Builds 的 `TALKFIT_D1_DATABASE_ID` 環境變數，然後套用初始 schema：
+
+```bash
+npx wrangler d1 execute site-creator-d1 --remote --file drizzle/0000_amazing_rocket_racer.sql
+```
+
+請勿把 Cloudflare API token 放進 repository。D1 database ID 不是密碼，但本專案仍以 build environment variable 管理，避免將部署 account 與原始碼綁死。
 
 ## 路由
 
