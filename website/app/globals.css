@@ -79,6 +79,7 @@ h1 em::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px;
 .consent input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--pine-2); flex: none; }
 .consent a { text-decoration: underline; text-underline-offset: 2px; }
 .form-error { margin: 10px 0 0; color: #9a3d22; font-size: 14px; font-weight: 650; }
+.waitlist-form .success-box { margin: 13px 0 0; }
 .honeypot { position: absolute !important; left: -9999px !important; width: 1px !important; height: 1px !important; }
 .trust-row { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 20px; color: var(--ink-soft); font-size: 13px; font-weight: 650; }
 .trust-row span::before { content: "✓"; margin-right: 6px; color: var(--moss); }

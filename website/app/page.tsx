@@ -27,9 +27,9 @@ export default function Home() {
           </p>
           <WaitlistForm location="hero" />
           <div className="trust-row" aria-label="測試計畫摘要">
-            <span>18 歲以上 TestFlight</span>
-            <span>只寄測試相關通知</span>
-            <span>可隨時取消</span>
+            <span>TestFlight 表單展示</span>
+            <span>目前不傳送 Email</span>
+            <span>目前不儲存資料</span>
           </div>
         </div>
         <div className="hero-visual" aria-label="TalkFit App 前後比較畫面">
@@ -38,7 +38,7 @@ export default function Home() {
             <strong>先少說兩個<br />「然後」</strong>
           </div>
           <div className="phone-frame hero-phone">
-            <Image src="/app/comparison.png" alt="TalkFit 重練前後比較畫面" width={736} height={727} priority />
+            <Image src="/app/comparison.png" alt="TalkFit 重練前後比較畫面" width={736} height={727} priority unoptimized />
           </div>
           <div className="growth-stamp"><b>−2</b><span>個贅字</span></div>
         </div>
@@ -81,8 +81,8 @@ export default function Home() {
             </div>
           </div>
           <div className="demo-screens">
-            <div className="phone-frame back-phone"><Image src="/app/report.png" alt="TalkFit 練習報告畫面" width={736} height={727} /></div>
-            <div className="phone-frame front-phone"><Image src="/app/retry.png" alt="TalkFit 立即重練畫面" width={736} height={727} /></div>
+            <div className="phone-frame back-phone"><Image src="/app/report.png" alt="TalkFit 練習報告畫面" width={736} height={727} unoptimized /></div>
+            <div className="phone-frame front-phone"><Image src="/app/retry.png" alt="TalkFit 立即重練畫面" width={736} height={727} unoptimized /></div>
           </div>
         </div>
       </section>
@@ -99,7 +99,7 @@ export default function Home() {
 
       <section className="privacy-section" id="privacy">
         <div className="shell privacy-grid">
-          <div className="privacy-mark"><Image src="/app-icon.png" alt="TalkFit App Icon" width={240} height={240} /></div>
+          <div className="privacy-mark"><Image src="/app-icon.png" alt="TalkFit App Icon" width={240} height={240} unoptimized /></div>
           <div>
             <p className="section-kicker light">你的聲音，先屬於你</p>
             <h2>練習需要安心，<br />不是更多資料蒐集。</h2>
@@ -121,8 +121,8 @@ export default function Home() {
       <section className="final-cta shell">
         <div>
           <p className="section-kicker">TestFlight 搶先測試</p>
-          <h2>準備好下一次開口時，<br />我們會寄信通知你。</h2>
-          <p>幫助 TalkFit 在不同聲音、口音與環境中變得更可靠。</p>
+          <h2>準備好下一次開口時，<br />候補名單也會正式開放。</h2>
+          <p>目前可以體驗表單流程，輸入內容不會被傳送或儲存。</p>
         </div>
         <WaitlistForm location="footer" compact />
       </section>

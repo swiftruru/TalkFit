@@ -8,7 +8,7 @@ async function source(path) {
   return readFile(new URL(path, root), "utf8");
 }
 
-test("ships the TalkFit product promise and both waitlist calls to action", async () => {
+test("ships the TalkFit product promise and both demo waitlist forms", async () => {
   const [page, form, layout] = await Promise.all([
     source("app/page.tsx"),
     source("app/components/WaitlistForm.tsx"),
@@ -19,9 +19,11 @@ test("ships the TalkFit product promise and both waitlist calls to action", asyn
   assert.match(page, /立即重練/);
   assert.match(page, /location="hero"/);
   assert.match(page, /location="footer"/);
-  assert.match(form, /加入 TalkFit 測試名單/);
+  assert.match(form, /模擬加入 TalkFit 測試名單/);
   assert.match(form, /type="email"/);
   assert.match(form, /type="checkbox" required/);
+  assert.match(form, /沒有被傳送或儲存/);
+  assert.doesNotMatch(form, /fetch\(|window\.location/);
   assert.match(layout, /lang="zh-Hant"/);
   assert.doesNotMatch(page, /SkeletonPreview|codex-preview/);
 });
@@ -43,21 +45,20 @@ test("includes App Store support, policy, and privacy-choice routes", async () =
   assert.match(terms, /非醫療聲明/);
 });
 
-test("keeps waitlist persistence server-side and rate limited", async () => {
-  const [hosting, schema, route, runtime] = await Promise.all([
-    source(".openai/hosting.json"),
-    source("db/schema.ts"),
+test("keeps forms non-persistent and omits D1 unless explicitly configured", async () => {
+  const [route, privacyRoute, confirmRoute, viteConfig] = await Promise.all([
     source("app/api/waitlist/route.ts"),
-    source("db/runtime.ts"),
+    source("app/api/privacy-choice/route.ts"),
+    source("app/api/waitlist/confirm/route.ts"),
+    source("vite.config.ts"),
   ]);
 
-  assert.match(hosting, /"d1": "DB"/);
-  assert.match(schema, /waitlist_entries/);
-  assert.match(schema, /privacy_requests/);
-  assert.match(route, /WAITLIST_WEBHOOK_URL/);
-  assert.match(route, /confirmationTokenHash|confirmation_token_hash/);
-  assert.match(runtime, /rate_limits/);
-  assert.doesNotMatch(route, /localStorage|sessionStorage/);
+  assert.match(route, /demo: true/);
+  assert.match(privacyRoute, /demo: true/);
+  assert.match(confirmRoute, /mode=demo/);
+  assert.doesNotMatch(`${route}\n${privacyRoute}\n${confirmRoute}`, /prepare\(|enforceRateLimit|ensureDatabase|cloudflare:workers/);
+  assert.match(viteConfig, /d1 && d1DatabaseId/);
+  assert.doesNotMatch(viteConfig, /00000000-0000-4000-8000-000000000000/);
 });
 
 test("bundles the real brand and product visuals", async () => {

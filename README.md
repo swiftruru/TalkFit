@@ -196,7 +196,7 @@ TalkFit 不依賴後端或生成式 AI，而是使用可解釋、可重現的本
 | App 後端 | 無；核心分析與練習摘要均在裝置端處理 |
 | 持久化 | SwiftData（選擇開啟的練習摘要）、`UserDefaults`（贅字庫差異與歷史開關） |
 | 官方網站 | Next.js 16 App Router、React 19、TypeScript、vinext、Vite |
-| 網站執行環境 | Cloudflare Workers、Cloudflare D1、Drizzle ORM |
+| 網站執行環境 | Cloudflare Workers；表單目前為無 D1 的非持久化展示 |
 
 ## 專案結構
 
@@ -288,7 +288,7 @@ npm test
 npm run build
 ```
 
-TestFlight 名單與隱私要求使用 Cloudflare D1 `DB` binding。如需發送確認信，可在部署環境設定選填的 `WAITLIST_WEBHOOK_URL`；請勿將 `.env*` 或憑證提交進 repository。更多網站說明見 [`website/README.md`](website/README.md)。
+目前 TestFlight 與隱私表單只是前端展示，不會傳送或儲存輸入內容，也不需要 Cloudflare D1。請勿將 `.env*` 或憑證提交進 repository。更多網站說明見 [`website/README.md`](website/README.md)。
 
 ## 權限說明
 
@@ -380,4 +380,4 @@ TestFlight 名單與隱私要求使用 Cloudflare D1 `DB` binding。如需發送
 
 iOS App 沒有 TalkFit 自有後端，也不會將錄音或逐字稿上傳至 TalkFit 自有伺服器。使用者選擇開啟歷史後，SwiftData 只在裝置保存日期、語言與前後指標摘要；不保存錄音、逐字稿、逐句內容或贅字時間戳。自訂贅字只以差異清單保存在裝置的 App 偏好中；語音辨識是否完全在裝置端執行，仍取決於裝置、系統版本與 Apple Speech framework 的可用能力。
 
-官方網站另使用 Cloudflare D1 保存 TestFlight 候補名單與使用者主動提交的隱私要求，不會接收或保存 App 錄音與逐字稿。詳細說明見網站的隱私權政策頁面。
+官方網站目前未啟用表單資料庫。TestFlight 與隱私表單只在瀏覽器內展示互動，不會傳送或保存 Email、隱私要求、App 錄音與逐字稿。詳細說明見網站的隱私權政策頁面。

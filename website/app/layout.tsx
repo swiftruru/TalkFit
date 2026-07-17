@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s｜TalkFit",
   },
   description:
-    "TalkFit 會找出最值得改善的一小段，讓你立即重練，並清楚看見前後真的進步了。加入 iPhone TestFlight 測試名單。",
+    "TalkFit 會找出最值得改善的一小段，讓你立即重練，並清楚看見前後真的進步了。查看 iPhone TestFlight 表單展示。",
   applicationName: "TalkFit",
   manifest: "/manifest.webmanifest",
   icons: {

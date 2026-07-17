@@ -21,7 +21,7 @@ export default function SupportPage() {
       <div className="prose">
         <section id="quick"><h2>快速入口</h2><div className="support-grid">
           <article className="support-card"><h3>回報 TestFlight 問題</h3><p>請在 GitHub Issues 描述重現步驟，不要附上私人錄音或完整逐字稿。</p><a href="https://github.com/swiftruru/TalkFit/issues" target="_blank" rel="noreferrer">前往 GitHub Issues →</a></article>
-          <article className="support-card"><h3>管理 Email</h3><p>取消測試通知，或提出查詢、更正與刪除候補名單資料的要求。</p><Link href="/privacy-choices">前往隱私選擇 →</Link></article>
+          <article className="support-card"><h3>管理 Email</h3><p>候補名單尚未開放，網站目前不會傳送或儲存表單 Email。</p><Link href="/privacy-choices">查看隱私選擇展示 →</Link></article>
         </div><p className="notice">正式支援信箱會在 App Store 上架前啟用並公布。測試期間以 GitHub Issues 為主要聯絡入口；一般問題預計於 3–5 個工作天內回覆。</p></section>
         <section id="requirements"><h2>版本與系統需求</h2><ul><li>TalkFit 目前為 TestFlight 前的 iOS prototype。</li><li>基準裝置：iPhone 17 Pro。</li><li>最低需求：iOS 26.5 或更新版本。</li><li>真實練習需要可用的麥克風與 Apple Speech 服務。</li></ul></section>
         <section id="faq-support"><h2>常見問題</h2>{faqs.map(([q,a]) => <div key={q}><h3>{q}</h3><p>{a}</p></div>)}</section>
