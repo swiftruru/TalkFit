@@ -7,9 +7,15 @@ struct TalkFitRootView: View {
 
     init(model: TalkFitModel) {
         self.model = model
-        _selection = State(initialValue: ProcessInfo.processInfo.arguments.contains("-openRecordingArchive")
-            ? .recordings
-            : .practice)
+        let arguments = ProcessInfo.processInfo.arguments
+        let initialTab: RootTab = if arguments.contains("-openSettings") {
+            .settings
+        } else if arguments.contains("-openRecordingArchive") {
+            .recordings
+        } else {
+            .practice
+        }
+        _selection = State(initialValue: initialTab)
     }
 
     var body: some View {
@@ -21,6 +27,10 @@ struct TalkFitRootView: View {
 
             Tab("紀錄", systemImage: "waveform", value: RootTab.recordings) {
                 RecordingArchiveView(model: model)
+            }
+
+            Tab("設定", systemImage: "gearshape.fill", value: RootTab.settings) {
+                SettingsView(model: model)
             }
         }
         .tint(TalkFitTheme.pine)
@@ -40,4 +50,5 @@ struct TalkFitRootView: View {
 private enum RootTab: Hashable {
     case practice
     case recordings
+    case settings
 }

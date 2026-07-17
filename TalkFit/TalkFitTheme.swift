@@ -9,6 +9,9 @@ enum TalkFitTheme {
     static let sage = Color(red: 0.58, green: 0.66, blue: 0.43)
     static let sageSoft = Color(red: 0.82, green: 0.84, blue: 0.68)
     static let clay = Color(red: 0.67, green: 0.31, blue: 0.16)
+    static let paceFast = Color(red: 0.76, green: 0.20, blue: 0.17)
+    static let paceNormal = Color(red: 0.24, green: 0.49, blue: 0.25)
+    static let paceSlow = Color(red: 0.18, green: 0.39, blue: 0.68)
     static let line = Color(red: 0.18, green: 0.31, blue: 0.20).opacity(0.18)
 
     static let pageGutter: CGFloat = 26
