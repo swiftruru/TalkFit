@@ -26,6 +26,8 @@ struct ContentView: View {
             RecordingView(model: model, round: round)
         case .analyzing(let round):
             AnalysisView(model: model, round: round)
+        case .recognitionIssue(let round, let issue):
+            RecognitionIssueView(model: model, round: round, issue: issue)
         case .report:
             if let result = model.firstResult {
                 ReportView(model: model, result: result)
@@ -37,6 +39,97 @@ struct ContentView: View {
         case .comparison:
             if let comparison = model.comparison {
                 ComparisonView(model: model, comparison: comparison)
+            }
+        }
+    }
+}
+
+private struct RecognitionIssueView: View {
+    let model: TalkFitModel
+    let round: PracticeRound
+    let issue: RecognitionIssue
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GardenNavigationHeader(
+                destination: round == .first ? "首頁" : "回饋",
+                prompt: nil
+            ) {
+                if round == .first {
+                    model.returnHome()
+                } else {
+                    model.returnToReport()
+                }
+            }
+            .padding(.horizontal, TalkFitTheme.pageGutter)
+            .padding(.top, TalkFitTheme.pageTop)
+
+            ScrollView {
+                VStack(spacing: 22) {
+                    ZStack(alignment: .bottomTrailing) {
+                        Circle()
+                            .fill(TalkFitTheme.sageSoft.opacity(0.45))
+                            .frame(width: 112, height: 112)
+                        Image(systemName: "waveform")
+                            .font(.system(size: 45, weight: .medium))
+                            .foregroundStyle(TalkFitTheme.pine)
+                            .frame(width: 112, height: 112)
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(TalkFitTheme.clay)
+                            .background(TalkFitTheme.paperLight, in: Circle())
+                    }
+                    .accessibilityHidden(true)
+
+                    VStack(spacing: 10) {
+                        Text(issue.title)
+                            .font(.system(.title2, design: .serif, weight: .semibold))
+                            .multilineTextAlignment(.center)
+                        Text(issue.message)
+                            .font(.body)
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    NotebookSection(title: "你的內容仍然是你的") {
+                        Text("TalkFit 不會拿範例冒充這次錄音。你可以重新錄音；若只是想確認完整流程，也能由你主動改用示範練習。")
+                            .font(.subheadline)
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.76))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.horizontal, TalkFitTheme.pageGutter)
+                .padding(.top, 30)
+                .padding(.bottom, 24)
+            }
+
+            BottomActionBar {
+                VStack(spacing: 12) {
+                    Button {
+                        model.retryAfterRecognitionIssue(round: round)
+                    } label: {
+                        Label(
+                            round == .first ? "重新錄音" : "重新重練這一段",
+                            systemImage: "mic.fill"
+                        )
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .accessibilityIdentifier("recognition.retry")
+
+                    Button {
+                        model.useDemoAfterRecognitionIssue(round: round)
+                    } label: {
+                        Label("改用示範練習", systemImage: "leaf.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.pine)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(TalkFitTheme.paperLight.opacity(0.76), in: Capsule())
+                            .overlay { Capsule().stroke(TalkFitTheme.line, lineWidth: 1) }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("recognition.use-demo")
+                }
             }
         }
     }

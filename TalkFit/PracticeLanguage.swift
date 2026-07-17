@@ -66,13 +66,6 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
         }
     }
 
-    var minimumUsableUnits: Int {
-        switch self {
-        case .traditionalChinese: 8
-        case .english: 4
-        }
-    }
-
     func normalizeFiller(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return self == .english ? trimmed.lowercased() : trimmed

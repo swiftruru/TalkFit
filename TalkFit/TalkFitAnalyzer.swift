@@ -10,27 +10,10 @@ enum TalkFitAnalyzer {
         scriptReference: ScriptPracticeReference? = nil,
         fillerWords: [String]
     ) -> PracticeResult {
-        let trimmed = capture.readableTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isUsable = capture.source == .sample
-            || language.speechUnitCount(in: trimmed) >= language.minimumUsableUnits
-        let effectiveCapture: SpeechCapture
-        if isUsable {
-            effectiveCapture = capture
-        } else if let scriptReference {
-            effectiveCapture = TalkFitFixtures.scriptCapture(
-                for: round,
-                language: language,
-                script: scriptReference.text,
-                fillerWords: fillerWords
-            )
-        } else {
-            effectiveCapture = TalkFitFixtures.sampleCapture(
-                for: round,
-                language: language,
-                context: context,
-                fillerWords: fillerWords
-            )
-        }
+        // A recognized capture must remain the user's capture, even when it is
+        // short or incomplete. Sample content is accepted only when the caller
+        // explicitly supplied a sample capture.
+        let effectiveCapture = capture
         let transcript = effectiveCapture.readableTranscript
         let source = effectiveCapture.source
         let effectiveDuration: TimeInterval

@@ -8,6 +8,58 @@ struct TalkFitAnalyzerTests {
         #expect(PracticeLanguage.traditionalChinese.speechUnitCount(in: "介紹 TalkFit 2.0") == 4)
     }
 
+    @Test("短真實逐字稿不會被示範內容取代")
+    func shortRecognizedTranscriptIsPreserved() {
+        let capture = SpeechCapture(
+            readableTranscript: "你好",
+            analysisTranscript: "你好",
+            fillerEvidence: [],
+            segments: [],
+            source: .recognized
+        )
+
+        let result = TalkFitAnalyzer.makeResult(
+            capture: capture,
+            duration: 2,
+            round: .first,
+            language: .traditionalChinese,
+            fillerWords: PracticeLanguage.traditionalChinese.defaultFillerWords
+        )
+
+        #expect(result.source == .recognized)
+        #expect(result.transcript == "你好")
+        #expect(!result.transcript.contains("小安"))
+    }
+
+    @Test("最終文字為空時保留可用的 partial 分析文字")
+    func partialTranscriptBecomesReadableFallback() {
+        let capture = SpeechCapture(
+            readableTranscript: "",
+            analysisTranscript: "這是我剛剛真的說過的內容",
+            fillerEvidence: [],
+            segments: [],
+            source: .recognized
+        ).preservingBestTranscript
+
+        #expect(capture.hasReadableTranscript)
+        #expect(capture.readableTranscript == "這是我剛剛真的說過的內容")
+        #expect(capture.source == .recognized)
+    }
+
+    @Test("空的真實 capture 不會在分析器內偷偷變成示範資料")
+    func emptyRecognizedCaptureNeverBecomesSample() {
+        let result = TalkFitAnalyzer.makeResult(
+            capture: .empty,
+            duration: 10,
+            round: .first,
+            language: .traditionalChinese,
+            fillerWords: PracticeLanguage.traditionalChinese.defaultFillerWords
+        )
+
+        #expect(result.source == .recognized)
+        #expect(result.transcript.isEmpty)
+    }
+
     @Test("英文贅字只匹配完整單字")
     func englishFillerWordBoundary() {
         let counts = TalkFitAnalyzer.fillerCounts(

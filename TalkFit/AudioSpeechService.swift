@@ -19,6 +19,7 @@ final class AudioSpeechService {
     private var languageModelTask: Task<SFSpeechLanguageModel.Configuration?, Never>?
     private var fillerLanguageModelConfiguration: SFSpeechLanguageModel.Configuration?
     private var languageModelKey: String?
+    private var recognitionError: Error?
     private var currentLanguage: PracticeLanguage = .traditionalChinese
     private var currentFillerWords = PracticeLanguage.traditionalChinese.defaultFillerWords
     private var tapInstalled = false
@@ -62,6 +63,7 @@ final class AudioSpeechService {
         guard speechStatus == .authorized else { throw AudioSpeechError.speechDenied }
 
         cancel()
+        recognitionError = nil
         currentLanguage = language
         currentFillerWords = fillerWords
         latestCapture = .empty
@@ -105,7 +107,8 @@ final class AudioSpeechService {
                 if let result {
                     self.consume(result)
                 }
-                if error != nil {
+                if let error {
+                    self.recognitionError = error
                     self.levelDidChange(0)
                     if self.finishContinuation != nil {
                         self.completeFinish()
@@ -152,12 +155,23 @@ final class AudioSpeechService {
             return latestCapture
         }
 
-        recognitionRequest?.endAudio()
+        if recognitionError != nil {
+            recognitionTask?.cancel()
+            recognitionTask = nil
+            recognitionRequest = nil
+            deactivateAudioSession()
+            return latestCapture
+        }
+
         return await withCheckedContinuation { continuation in
             finishContinuation = continuation
+            recognitionRequest?.endAudio()
             finishTimeoutTask?.cancel()
             finishTimeoutTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(850))
+                // Final recognition is asynchronous after endAudio(). Give the
+                // device enough time to deliver isFinal while keeping a bounded
+                // escape hatch for unavailable recognition services.
+                try? await Task.sleep(for: .seconds(4))
                 guard !Task.isCancelled else { return }
                 self?.completeFinish()
             }
@@ -170,12 +184,14 @@ final class AudioSpeechService {
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
+        recognitionError = nil
         finishTimeoutTask?.cancel()
         finishTimeoutTask = nil
         if let continuation = finishContinuation {
             finishContinuation = nil
             continuation.resume(returning: latestCapture)
         }
+        latestCapture = .empty
         deactivateAudioSession()
         levelDidChange(0)
     }

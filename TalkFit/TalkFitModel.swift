@@ -46,6 +46,7 @@ final class TalkFitModel {
     @ObservationIgnored private let fillerStore: FillerLibraryStore
     @ObservationIgnored private let historyStore: PracticeHistoryStore?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
+    @ObservationIgnored private var recordingStartTask: Task<Void, Never>?
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var analysisPaused = false
 
@@ -193,6 +194,8 @@ final class TalkFitModel {
     func stopRecording() {
         guard case .recording(let round) = stage else { return }
         clockTask?.cancel()
+        recordingStartTask?.cancel()
+        recordingStartTask = nil
         let capturedDuration = max(elapsed, 1)
         stage = .analyzing(round)
         analysisPaused = false
@@ -200,10 +203,17 @@ final class TalkFitModel {
         analysisTask?.cancel()
         analysisTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let capture = self.isDemoMode
+            let rawCapture = self.isDemoMode
                 ? self.fallbackCapture(for: round)
                 : await self.speech.finish()
             guard !Task.isCancelled else { return }
+            let capture = rawCapture.preservingBestTranscript
+            guard capture.source == .sample || capture.hasReadableTranscript else {
+                self.isDemoMode = false
+                self.fallbackNotice = nil
+                self.stage = .recognitionIssue(round, .noTranscript)
+                return
+            }
             self.liveTranscript = capture.readableTranscript
             self.liveFillerEvidence = capture.fillerEvidence
             self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
@@ -255,6 +265,14 @@ final class TalkFitModel {
     func choosePrioritySegment() {
         guard firstResult != nil else { return }
         stage = .retry
+    }
+
+    func retryAfterRecognitionIssue(round: PracticeRound) {
+        beginRecording(round: round, demo: false)
+    }
+
+    func useDemoAfterRecognitionIssue(round: PracticeRound) {
+        beginRecording(round: round, demo: true)
     }
 
     func setAnalysisPaused(_ paused: Bool) {
@@ -357,6 +375,8 @@ final class TalkFitModel {
     private func cancelTransientWork() {
         clockTask?.cancel()
         clockTask = nil
+        recordingStartTask?.cancel()
+        recordingStartTask = nil
         analysisTask?.cancel()
         analysisTask = nil
         analysisPaused = false
@@ -371,6 +391,8 @@ final class TalkFitModel {
 
     private func beginRecording(round: PracticeRound, demo: Bool) {
         clockTask?.cancel()
+        recordingStartTask?.cancel()
+        recordingStartTask = nil
         speech.cancel()
         elapsed = 0
         audioLevel = 0.08
@@ -383,8 +405,9 @@ final class TalkFitModel {
         startClock(synthetic: demo)
 
         guard !demo else { return }
-        Task { @MainActor [weak self] in
+        recordingStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            guard !Task.isCancelled else { return }
             do {
                 try await self.speech.start(
                     language: self.selectedLanguage,
@@ -392,10 +415,20 @@ final class TalkFitModel {
                     referenceText: self.recordingPrompt(for: round),
                     fillerWords: self.activeFillerWords
                 )
+                guard !Task.isCancelled else {
+                    self.speech.cancel()
+                    return
+                }
             } catch {
-                self.isDemoMode = true
-                self.fallbackNotice = "目前無法使用語音辨識，已切換為示範結果"
-                self.startClock(synthetic: true)
+                guard !Task.isCancelled else { return }
+                guard case .recording(let activeRound) = self.stage,
+                      activeRound == round else { return }
+                self.clockTask?.cancel()
+                self.clockTask = nil
+                self.speech.cancel()
+                self.isDemoMode = false
+                self.fallbackNotice = nil
+                self.stage = .recognitionIssue(round, .serviceUnavailable)
             }
         }
     }
