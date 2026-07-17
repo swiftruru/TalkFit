@@ -15,6 +15,7 @@ struct ContentView: View {
         .tint(TalkFitTheme.pine)
         .foregroundStyle(TalkFitTheme.ink)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: model.stage)
+        .onOpenURL(perform: handleDeepLink)
     }
 
     @ViewBuilder
@@ -41,6 +42,16 @@ struct ContentView: View {
                 ComparisonView(model: model, comparison: comparison)
             }
         }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "talkfit",
+              url.host == "practice",
+              url.path == "/start",
+              model.stage == .home else {
+            return
+        }
+        model.startPractice()
     }
 }
 
