@@ -158,7 +158,7 @@ private struct RecordingView: View {
             }
 
             VStack(spacing: 7) {
-                Text(round == .first ? "正在聽你說" : "正在重練這一段")
+                Text(recordingTitle)
                     .font(.system(.title2, design: .serif, weight: .semibold))
                 Text(timerText)
                     .font(.system(size: 56, weight: .light, design: .rounded))
@@ -205,13 +205,7 @@ private struct RecordingView: View {
                 )
             }
 
-            NotebookSection(title: round == .first ? "題目" : "這次只練一句") {
-                Text(round == .first
-                     ? model.activePrompt
-                     : (model.firstResult?.prioritySegment ?? ""))
-                    .font(.body.weight(.medium))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            recordingPromptSection
 
             if !model.liveTranscript.isEmpty {
                 Text(model.liveTranscript)
@@ -254,6 +248,42 @@ private struct RecordingView: View {
                 leaveTitle: "放棄這次重練",
                 stayTitle: "繼續錄音"
             )
+        }
+    }
+
+    private var recordingTitle: String {
+        if round == .retry { return "正在重練這一段" }
+        return model.usesScriptPractice ? "正在錄完整講稿" : "正在短講練習"
+    }
+
+    @ViewBuilder
+    private var recordingPromptSection: some View {
+        if round == .first, let session = model.scriptPractice {
+            NotebookSection(title: "完整講稿 · \(session.paragraphs.count) 段") {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(session.paragraphs) { paragraph in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(paragraph.number)")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(TalkFitTheme.moss)
+                                    .frame(width: 24, height: 24)
+                                    .background(TalkFitTheme.sageSoft.opacity(0.42), in: Circle())
+                                Text(paragraph.text)
+                                    .font(.subheadline.weight(.medium))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 136)
+            }
+        } else {
+            NotebookSection(title: round == .first ? "短講題目" : "這次只練這一段") {
+                Text(round == .first ? model.activePrompt : model.retryPrompt)
+                    .font(.body.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -314,7 +344,7 @@ private struct AnalysisView: View {
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: growing)
                 Text("正在整理你的表達")
                     .font(.system(.title2, design: .serif, weight: .semibold))
-                Text("找出最值得先重練的一小段")
+                Text(analysisMessage)
                     .font(.subheadline)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
                 ProgressView()
@@ -337,11 +367,30 @@ private struct AnalysisView: View {
             stayTitle: "繼續整理"
         )
     }
+
+    private var analysisMessage: String {
+        if round == .first, let scriptPractice = model.scriptPractice {
+            return "正在整理 \(scriptPractice.paragraphs.count) 段講稿的個別建議"
+        }
+        return "整理一個最值得參考的小建議"
+    }
 }
 
 private struct ReportView: View {
     let model: TalkFitModel
     let result: PracticeResult
+
+    @Bindable private var bindableModel: TalkFitModel
+
+    init(model: TalkFitModel, result: PracticeResult) {
+        self.model = model
+        self.result = result
+        _bindableModel = Bindable(model)
+    }
+
+    private var isFullScript: Bool {
+        result.scriptReference?.isWholeScript == true
+    }
 
     var body: some View {
         ScrollView {
@@ -350,7 +399,7 @@ private struct ReportView: View {
                     destination: "首頁",
                     prompt: GardenLeavePrompt(
                         title: "要離開這份回饋嗎？",
-                        message: "這次練習尚未完成重練，返回首頁後回饋不會保留。",
+                        message: "這次練習尚未收下，返回首頁後回饋不會保留。",
                         leaveTitle: "返回首頁",
                         stayTitle: "繼續查看"
                     )
@@ -363,37 +412,44 @@ private struct ReportView: View {
                         .font(.caption.weight(.semibold))
                         .tracking(1.2)
                         .foregroundStyle(TalkFitTheme.moss)
-                    Text("先把這一段說得更直接")
+                    Text(isFullScript ? "講稿練習完成" : "這次練習完成")
                         .font(.system(.title, design: .serif, weight: .bold))
-                    Text("不用一次改很多，先拿掉停頓詞，重點就會更清楚。")
+                    Text(
+                        isFullScript
+                            ? "你可以收下整次練習，也可以只挑一段再說一次。"
+                            : "先看看一個小建議；要不要再錄一次，由你決定。"
+                    )
                         .font(.subheadline)
                         .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
                 }
 
-                NotebookSection(title: "最值得先改善") {
-                    Button {
-                        model.choosePrioritySegment()
-                    } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            Rectangle()
-                                .fill(TalkFitTheme.clay)
-                                .frame(width: 3)
-                            VStack(alignment: .leading, spacing: 8) {
+                ReportMetricsStrip(result: result, isFullScript: isFullScript)
+
+                if isFullScript {
+                    ScriptParagraphReviewSection(
+                        feedback: model.scriptParagraphFeedback,
+                        choose: model.chooseScriptParagraph
+                    )
+                } else {
+                    NotebookSection(title: "TALKFIT 的建議 · 可略過") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top, spacing: 12) {
+                                Rectangle()
+                                    .fill(TalkFitTheme.clay)
+                                    .frame(width: 3)
                                 Text("「\(result.prioritySegment)」")
                                     .font(.body.weight(.semibold))
-                                    .multilineTextAlignment(.leading)
-                                Label("點一下，立即重練", systemImage: "arrow.up.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(TalkFitTheme.clay)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            Spacer(minLength: 0)
+                            Label(result.coachingCue, systemImage: "leaf.fill")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(TalkFitTheme.moss)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("report.retry")
                 }
 
-                if let scriptComparison = result.scriptComparison {
+                if let scriptComparison = result.scriptComparison, !isFullScript {
                     ScriptComparisonSection(comparison: scriptComparison)
                 }
 
@@ -467,16 +523,162 @@ private struct ReportView: View {
                     }
                 }
             }
-            .talkFitPageInsets(bottom: 118)
+            .talkFitPageInsets(bottom: isFullScript ? 116 : 132)
         }
         .safeAreaInset(edge: .bottom) {
             BottomActionBar {
-                Button("重練最重要的一段") {
-                    model.choosePrioritySegment()
+                if isFullScript {
+                    Button("收下整次進步") {
+                        model.acceptResult()
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .accessibilityIdentifier("report.done")
+                } else {
+                    HStack(spacing: 10) {
+                        Button("重錄這一段") {
+                            model.choosePrioritySegment()
+                        }
+                        .buttonStyle(SecondaryActionStyle())
+                        .accessibilityIdentifier("report.retry.bottom")
+
+                        Button("收下這次進步") {
+                            model.acceptResult()
+                        }
+                        .buttonStyle(PrimaryActionStyle())
+                        .accessibilityIdentifier("report.done")
+                    }
                 }
-                .buttonStyle(PrimaryActionStyle())
-                .accessibilityIdentifier("report.retry.bottom")
             }
+        }
+        .alert("要把進步留在這台 iPhone 嗎？", isPresented: $bindableModel.isHistoryChoicePresented) {
+            Button("暫時不要") {
+                model.declineHistoryAndFinish()
+            }
+            Button("開啟並保存") {
+                model.enableHistoryAndSave()
+            }
+            Button("留在回饋頁", role: .cancel) {}
+        } message: {
+            Text("保存日期、語言、摘要指標與這次的真實錄音；不保存講稿、逐字稿、逐句內容或贅字時間戳。錄音只留在這台 iPhone，之後可隨時關閉或刪除。")
+        }
+    }
+}
+
+private struct ReportMetricsStrip: View {
+    let result: PracticeResult
+    let isFullScript: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if isFullScript {
+                metric(
+                    title: "內容涵蓋",
+                    value: "\(result.scriptComparison?.coverage ?? 0)%",
+                    systemImage: "doc.text"
+                )
+            } else {
+                metric(title: "贅字", value: "\(result.fillerTotal) 個", systemImage: "quote.bubble")
+            }
+            metric(
+                title: isFullScript ? "贅字" : "語速",
+                value: isFullScript ? "\(result.fillerTotal) 個" : "\(result.pace)",
+                systemImage: isFullScript ? "quote.bubble" : "metronome"
+            )
+            metric(title: "穩定度", value: "\(result.stability)%", systemImage: "waveform.path")
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func metric(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(TalkFitTheme.clay)
+                .accessibilityHidden(true)
+            Text(value)
+                .font(.title3.weight(.bold).monospacedDigit())
+                .foregroundStyle(TalkFitTheme.pine)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        .padding(12)
+        .background(
+            TalkFitTheme.paperLight.opacity(0.82),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(TalkFitTheme.line, lineWidth: 1)
+        }
+    }
+}
+
+private struct ScriptParagraphReviewSection: View {
+    let feedback: [ScriptParagraphFeedback]
+    let choose: (ScriptParagraph) -> Void
+
+    var body: some View {
+        NotebookSection(title: "選一段再練 · 可略過") {
+            VStack(spacing: 14) {
+                ForEach(feedback) { item in
+                    Button {
+                        choose(item.paragraph)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("\(item.paragraph.number)")
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(.white)
+                                    .frame(width: 28, height: 28)
+                                    .background(TalkFitTheme.pine, in: Circle())
+                                Text(item.paragraph.text)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(TalkFitTheme.ink)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                            }
+
+                            Text(item.suggestion)
+                                .font(.caption)
+                                .foregroundStyle(TalkFitTheme.ink.opacity(0.66))
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack {
+                                Text("內容涵蓋 \(item.comparison.coverage)%")
+                                    .font(.caption2.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(TalkFitTheme.moss)
+                                Spacer()
+                                Label("重錄這一段", systemImage: "mic.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(TalkFitTheme.clay)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(15)
+                        .background(
+                            TalkFitTheme.sageSoft.opacity(0.22),
+                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(TalkFitTheme.moss.opacity(0.22), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("report.script.retry.\(item.paragraph.number)")
+                }
+            }
+
+            Label("選取後會進入短講模式，只錄你選的那一段。", systemImage: "arrow.turn.down.right")
+                .font(.caption)
+                .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -561,7 +763,7 @@ private struct RetryView: View {
             }
 
             NotebookSection(title: "原本的說法") {
-                Text("「\(result.prioritySegment)」")
+                Text("「\(model.retryPrompt)」")
                     .font(.title3.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -573,7 +775,7 @@ private struct RetryView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("這次的提醒").font(.caption.weight(.bold)).foregroundStyle(TalkFitTheme.clay)
-                    Text(result.coachingCue).font(.body.weight(.medium))
+                    Text(model.retryCoachingCue).font(.body.weight(.medium))
                 }
             }
             .padding(.horizontal, 4)
@@ -628,9 +830,9 @@ private struct ComparisonView: View {
                     .font(.title3)
                     .foregroundStyle(TalkFitTheme.sage, TalkFitTheme.moss)
                     .accessibilityHidden(true)
-                    Text("這次，重點真的更快出現了")
+                    Text("這一段練完了")
                         .font(.system(.title, design: .serif, weight: .bold))
-                    Text("你沒有重說整段，只改了一個小地方，表達就更清楚。")
+                    Text("看看前後差異，再決定要收下進步，或把同一段再錄一次。")
                         .font(.subheadline)
                         .foregroundStyle(TalkFitTheme.ink.opacity(0.66))
                 }
@@ -677,11 +879,19 @@ private struct ComparisonView: View {
         }
         .safeAreaInset(edge: .bottom) {
             BottomActionBar {
-                Button("收下這次進步") {
-                    model.acceptComparison()
+                HStack(spacing: 10) {
+                    Button("再錄這一段") {
+                        model.retryComparisonSegment()
+                    }
+                    .buttonStyle(SecondaryActionStyle())
+                    .accessibilityIdentifier("comparison.retry")
+
+                    Button("收下這次進步") {
+                        model.acceptComparison()
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .accessibilityIdentifier("comparison.done")
                 }
-                .buttonStyle(PrimaryActionStyle())
-                .accessibilityIdentifier("comparison.done")
             }
         }
         .alert("要把進步留在這台 iPhone 嗎？", isPresented: $bindableModel.isHistoryChoicePresented) {
@@ -693,7 +903,7 @@ private struct ComparisonView: View {
             }
             Button("留在比較頁", role: .cancel) {}
         } message: {
-            Text("只保存日期、語言與前後指標；不保存錄音、逐字稿、逐句內容或贅字時間戳。你之後可隨時關閉或刪除。")
+            Text("保存日期、語言、前後指標與這次的真實錄音；不保存講稿、逐字稿、逐句內容或贅字時間戳。錄音只留在這台 iPhone，之後可隨時關閉或刪除。")
         }
     }
 }

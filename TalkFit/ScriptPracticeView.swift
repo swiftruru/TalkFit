@@ -5,7 +5,6 @@ struct ScriptPracticeView: View {
     let dismiss: () -> Void
 
     @State private var draft = ""
-    @State private var selectedIndex = 0
     @FocusState private var isEditorFocused: Bool
 
     private var paragraphs: [ScriptParagraph] {
@@ -37,7 +36,7 @@ struct ScriptPracticeView: View {
             .safeAreaInset(edge: .bottom) {
                 BottomActionBar {
                     Button(action: useSelectedParagraph) {
-                        Label("帶著這一段去練習", systemImage: "leaf.fill")
+                        Label("帶著完整講稿去練習", systemImage: "leaf.fill")
                     }
                     .buttonStyle(PrimaryActionStyle())
                     .disabled(paragraphs.isEmpty)
@@ -48,24 +47,16 @@ struct ScriptPracticeView: View {
         .tint(TalkFitTheme.pine)
         .onAppear {
             if let session = model.scriptPractice {
-                draft = session.paragraphs.map(\.text).joined(separator: "\n\n")
-                selectedIndex = session.selectedIndex
-            }
-        }
-        .onChange(of: paragraphs.count) { _, count in
-            if count == 0 {
-                selectedIndex = 0
-            } else if selectedIndex >= count {
-                selectedIndex = count - 1
+                draft = session.fullText
             }
         }
     }
 
     private var introduction: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("把講稿拆成一小段一小段")
+            Text("先完整說完，再挑一段加強")
                 .font(.system(.title2, design: .serif, weight: .bold))
-            Text("貼上內容後選一段開始。TalkFit 會比較你實際說出的重點，不要求逐字背誦。")
+            Text("貼上整份講稿後開始錄音。完成後每一段都會有建議，你可以只重錄想加強的那一段。")
                 .font(.subheadline)
                 .foregroundStyle(TalkFitTheme.ink.opacity(0.66))
                 .fixedSize(horizontal: false, vertical: true)
@@ -104,7 +95,7 @@ struct ScriptPracticeView: View {
                 Image(systemName: "lock.shield")
                     .foregroundStyle(TalkFitTheme.moss)
                     .accessibilityHidden(true)
-                Text("講稿只留在這次 App 使用期間；歷史紀錄不會保存講稿、錄音或逐字稿。")
+                Text("講稿只留在這次 App 使用期間；歷史紀錄不會保存講稿或逐字稿。若你開啟本機紀錄，收下練習時會保存錄音。")
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
@@ -117,7 +108,7 @@ struct ScriptPracticeView: View {
         if !paragraphs.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("選擇這次要練的段落")
+                    Text("錄完後可逐段重練")
                         .font(.headline)
                     Spacer()
                     Text("共 \(paragraphs.count) 段")
@@ -126,57 +117,41 @@ struct ScriptPracticeView: View {
                 }
 
                 ForEach(paragraphs) { paragraph in
-                    paragraphButton(paragraph)
+                    paragraphPreview(paragraph)
                 }
             }
         }
     }
 
-    private func paragraphButton(_ paragraph: ScriptParagraph) -> some View {
-        let isSelected = paragraph.id == selectedIndex
-        return Button {
-            selectedIndex = paragraph.id
-            isEditorFocused = false
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Text("\(paragraph.number)")
-                    .font(.caption.weight(.bold).monospacedDigit())
-                    .foregroundStyle(isSelected ? .white : TalkFitTheme.moss)
-                    .frame(width: 30, height: 30)
-                    .background(isSelected ? TalkFitTheme.pine : TalkFitTheme.sageSoft.opacity(0.45), in: Circle())
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(paragraph.text)
-                        .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                        .foregroundStyle(TalkFitTheme.ink)
-                        .lineLimit(4)
-                        .multilineTextAlignment(.leading)
-                    if isSelected {
-                        Label("這次練這一段", systemImage: "checkmark")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(TalkFitTheme.clay)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(
-                isSelected ? TalkFitTheme.sageSoft.opacity(0.38) : TalkFitTheme.paperLight.opacity(0.64),
-                in: RoundedRectangle(cornerRadius: 19, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 19, style: .continuous)
-                    .stroke(isSelected ? TalkFitTheme.moss.opacity(0.45) : TalkFitTheme.line, lineWidth: 1)
-            }
+    private func paragraphPreview(_ paragraph: ScriptParagraph) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(paragraph.number)")
+                .font(.caption.weight(.bold).monospacedDigit())
+                .foregroundStyle(TalkFitTheme.moss)
+                .frame(width: 30, height: 30)
+                .background(TalkFitTheme.sageSoft.opacity(0.45), in: Circle())
+            Text(paragraph.text)
+                .font(.subheadline)
+                .foregroundStyle(TalkFitTheme.ink)
+                .lineLimit(4)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            TalkFitTheme.paperLight.opacity(0.64),
+            in: RoundedRectangle(cornerRadius: 19, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 19, style: .continuous)
+                .stroke(TalkFitTheme.line, lineWidth: 1)
+        }
         .accessibilityLabel("第 \(paragraph.number) 段，\(paragraph.text)")
-        .accessibilityValue(isSelected ? "已選取" : "未選取")
         .accessibilityIdentifier("script.paragraph.\(paragraph.number)")
     }
 
     private func useSelectedParagraph() {
-        guard model.configureScriptPractice(text: draft, selectedIndex: selectedIndex) else { return }
+        guard model.configureScriptPractice(text: draft) else { return }
         dismiss()
     }
 }

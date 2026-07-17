@@ -22,6 +22,22 @@ struct ScriptPracticeTests {
         #expect(paragraphs[1].text == "Main idea")
     }
 
+    @Test("講稿練習會保留完整段落，第一次錄音不預選單段")
+    func keepsWholeScriptForFirstRecording() throws {
+        let session = try #require(
+            ScriptPracticeSession.make(text: "第一段。\n\n第二段。\n\n第三段。")
+        )
+        let reference = ScriptPracticeReference(
+            text: session.fullText,
+            paragraphCount: session.paragraphs.count
+        )
+
+        #expect(session.paragraphs.count == 3)
+        #expect(session.fullText == "第一段。\n\n第二段。\n\n第三段。")
+        #expect(reference.isWholeScript)
+        #expect(reference.title == "自訂講稿 · 完整 3 段")
+    }
+
     @Test("中文比較會計算涵蓋程度並找出未說出的內容")
     func comparesChineseScript() {
         let comparison = ScriptPracticeAnalyzer.compare(
@@ -47,6 +63,23 @@ struct ScriptPracticeTests {
         #expect(comparison.missingKeywords.contains("safe"))
     }
 
+    @Test("完整講稿結果會為每一段產生可操作的相關建議")
+    func createsParagraphFeedback() {
+        let paragraphs = ScriptPracticeAnalyzer.paragraphs(
+            in: "先介紹今天的提案。\n\n接著說明校園服務如何幫助學生。\n\n最後邀請大家一起參與。"
+        )
+        let feedback = ScriptPracticeAnalyzer.paragraphFeedback(
+            paragraphs: paragraphs,
+            spoken: "先介紹今天的提案。接著說明校園服務幫助學生。最後邀請大家參與。",
+            language: .traditionalChinese
+        )
+
+        #expect(feedback.count == 3)
+        #expect(feedback.map(\.paragraph.number) == [1, 2, 3])
+        #expect(feedback.allSatisfy { !$0.suggestion.isEmpty })
+        #expect(feedback.allSatisfy { !$0.spokenExcerpt.isEmpty })
+    }
+
     @Test("講稿備援保留使用者段落並只在第一次加入贅字證據")
     func scriptFallbackStaysCoherent() {
         let first = TalkFitFixtures.scriptCapture(
@@ -68,8 +101,8 @@ struct ScriptPracticeTests {
         #expect(retry.fillerEvidence.isEmpty)
     }
 
-    @Test("講稿示範重練會移除原優先句中的贅字")
-    func scriptRetryRemovesFiller() {
+    @Test("講稿示範重練不會擅自刪除使用者原文")
+    func scriptRetryPreservesReferenceText() {
         let capture = TalkFitFixtures.scriptCapture(
             for: .retry,
             language: .english,
@@ -77,7 +110,7 @@ struct ScriptPracticeTests {
             fillerWords: PracticeLanguage.english.defaultFillerWords
         )
 
-        #expect(capture.readableTranscript == "Hello I am Mia.")
-        #expect(capture.fillerEvidence.isEmpty)
+        #expect(capture.readableTranscript == "Um, Hello I am Mia.")
+        #expect(capture.source == .sample)
     }
 }

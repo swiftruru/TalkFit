@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+private enum PendingHistoryCompletion {
+    case result(PracticeResult)
+    case comparison(ComparisonResult)
+}
+
 @MainActor
 @Observable
 final class TalkFitModel {
@@ -17,9 +22,11 @@ final class TalkFitModel {
     var selectedLanguage: PracticeLanguage = .traditionalChinese
     var selectedContext: PracticeContext = .selfIntroduction
     var scriptPractice: ScriptPracticeSession?
+    private(set) var retryParagraph: ScriptParagraph?
     var isHistoryChoicePresented = false
     private(set) var historyPreference: HistoryPreference
     private(set) var practiceHistory: [PracticeHistorySummary] = []
+    private(set) var recordingSessions: [RecordingArchiveSessionSummary] = []
     private(set) var fillerWordsByLanguage: [PracticeLanguage: [String]]
 
     var activeFillerWords: [String] {
@@ -27,33 +34,66 @@ final class TalkFitModel {
     }
 
     var activePrompt: String {
-        scriptPractice?.selectedParagraph?.text
+        scriptPractice?.fullText
             ?? selectedContext.prompt(for: selectedLanguage)
     }
 
     var activePromptTitle: String {
-        guard let scriptPractice, let paragraph = scriptPractice.selectedParagraph else {
+        guard let scriptPractice else {
             return selectedContext.promptTitle(for: selectedLanguage)
         }
-        return "自訂講稿 · 第 \(paragraph.number)／\(scriptPractice.paragraphs.count) 段"
+        return "自訂講稿 · 完整 \(scriptPractice.paragraphs.count) 段"
     }
 
     var usesScriptPractice: Bool {
-        scriptPractice?.selectedParagraph != nil
+        scriptPractice != nil
+    }
+
+    var retryPrompt: String {
+        retryParagraph?.text ?? firstResult?.prioritySegment ?? ""
+    }
+
+    var retryCoachingCue: String {
+        guard let retryParagraph,
+              let feedback = scriptParagraphFeedback.first(where: {
+                  $0.paragraph.id == retryParagraph.id
+              }) else {
+            return firstResult?.coachingCue ?? "先把重點說清楚，不用追求一次完美。"
+        }
+        return feedback.suggestion
+    }
+
+    var scriptParagraphFeedback: [ScriptParagraphFeedback] {
+        guard let scriptPractice, let firstResult else { return [] }
+        return ScriptPracticeAnalyzer.paragraphFeedback(
+            paragraphs: scriptPractice.paragraphs,
+            spoken: firstResult.transcript,
+            language: firstResult.language
+        )
     }
 
     @ObservationIgnored private let speech = AudioSpeechService()
     @ObservationIgnored private let fillerStore: FillerLibraryStore
     @ObservationIgnored private let historyStore: PracticeHistoryStore?
+    @ObservationIgnored private let recordingArchiveStore: RecordingArchiveStore?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
     @ObservationIgnored private var recordingStartTask: Task<Void, Never>?
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var analysisPaused = false
+    @ObservationIgnored private var retryBaselineResult: PracticeResult?
+    @ObservationIgnored private var pendingHistoryCompletion: PendingHistoryCompletion?
+    @ObservationIgnored private var pendingRecordingSessionID: UUID?
+    @ObservationIgnored private var pendingRecordingStartedAt: Date?
+    @ObservationIgnored private var pendingRecordingAttempts: [RecordingArchiveAttemptDraft] = []
 
-    init(historyStore: PracticeHistoryStore? = nil) {
+    init(
+        historyStore: PracticeHistoryStore? = nil,
+        recordingArchiveStore: RecordingArchiveStore? = nil
+    ) {
         let fillerStore = FillerLibraryStore()
         self.fillerStore = fillerStore
         self.historyStore = historyStore
+        self.recordingArchiveStore = recordingArchiveStore
         historyPreference = historyStore?.preference ?? .undecided
         fillerWordsByLanguage = fillerStore.load()
         speech.levelDidChange = { [weak self] level in self?.audioLevel = level }
@@ -118,12 +158,9 @@ final class TalkFitModel {
     }
 
     @discardableResult
-    func configureScriptPractice(text: String, selectedIndex: Int) -> Bool {
+    func configureScriptPractice(text: String) -> Bool {
         guard stage == .home,
-              let session = ScriptPracticeSession.make(
-                text: text,
-                selectedIndex: selectedIndex
-              ) else {
+              let session = ScriptPracticeSession.make(text: text) else {
             return false
         }
         scriptPractice = session
@@ -184,6 +221,9 @@ final class TalkFitModel {
     }
 
     func startPractice(demo: Bool = false) {
+        discardPendingRecordings()
+        pendingRecordingSessionID = UUID()
+        pendingRecordingStartedAt = .now
         beginRecording(round: .first, demo: demo)
     }
 
@@ -203,9 +243,16 @@ final class TalkFitModel {
         analysisTask?.cancel()
         analysisTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            var unclaimedRecordingURL: URL?
+            defer {
+                if let unclaimedRecordingURL {
+                    try? FileManager.default.removeItem(at: unclaimedRecordingURL)
+                }
+            }
             let rawCapture = self.isDemoMode
                 ? self.fallbackCapture(for: round)
                 : await self.speech.finish()
+            unclaimedRecordingURL = rawCapture.recordedFileURL
             guard !Task.isCancelled else { return }
             let capture = rawCapture.preservingBestTranscript
             guard capture.source == .sample || capture.hasReadableTranscript else {
@@ -239,11 +286,18 @@ final class TalkFitModel {
                     scriptReference: self.scriptReference(for: .first),
                     fillerWords: self.activeFillerWords
                 )
+                if self.retainRecording(
+                    at: rawCapture.recordedFileURL,
+                    for: result,
+                    round: round
+                ) {
+                    unclaimedRecordingURL = nil
+                }
                 self.firstResult = result
                 self.isDemoMode = result.source == .sample
                 self.stage = .report
             case .retry:
-                guard let before = self.firstResult else {
+                guard let before = self.retryBaselineResult ?? self.firstResult else {
                     self.stage = .home
                     return
                 }
@@ -256,6 +310,13 @@ final class TalkFitModel {
                     scriptReference: self.scriptReference(for: .retry),
                     fillerWords: self.activeFillerWords
                 )
+                if self.retainRecording(
+                    at: rawCapture.recordedFileURL,
+                    for: after,
+                    round: round
+                ) {
+                    unclaimedRecordingURL = nil
+                }
                 self.comparison = ComparisonResult(before: before, after: after)
                 self.stage = .comparison
             }
@@ -263,7 +324,31 @@ final class TalkFitModel {
     }
 
     func choosePrioritySegment() {
-        guard firstResult != nil else { return }
+        guard let firstResult else { return }
+        retryParagraph = nil
+        retryBaselineResult = shortPracticeBaseline(original: firstResult)
+        comparison = nil
+        stage = .retry
+    }
+
+    func chooseScriptParagraph(_ paragraph: ScriptParagraph) {
+        guard let firstResult,
+              let feedback = scriptParagraphFeedback.first(where: {
+                  $0.paragraph.id == paragraph.id
+              }) else { return }
+        retryParagraph = paragraph
+        retryBaselineResult = paragraphBaseline(
+            feedback: feedback,
+            original: firstResult
+        )
+        comparison = nil
+        stage = .retry
+    }
+
+    func retryComparisonSegment() {
+        guard let comparison else { return }
+        retryBaselineResult = comparison.after
+        self.comparison = nil
         stage = .retry
     }
 
@@ -286,6 +371,8 @@ final class TalkFitModel {
         }
         cancelTransientWork()
         comparison = nil
+        retryParagraph = nil
+        retryBaselineResult = nil
         stage = .report
     }
 
@@ -301,6 +388,7 @@ final class TalkFitModel {
 
     func returnHome() {
         cancelTransientWork()
+        discardPendingRecordings()
         elapsed = 0
         audioLevel = 0.08
         liveTranscript = ""
@@ -308,6 +396,9 @@ final class TalkFitModel {
         liveSentencePaces = []
         firstResult = nil
         comparison = nil
+        retryParagraph = nil
+        retryBaselineResult = nil
+        pendingHistoryCompletion = nil
         fallbackNotice = nil
         isDemoMode = false
         isHistoryChoicePresented = false
@@ -315,35 +406,25 @@ final class TalkFitModel {
         stage = .home
     }
 
+    func acceptResult() {
+        guard let firstResult else {
+            returnHome()
+            return
+        }
+        finishPractice(.result(firstResult))
+    }
+
     func acceptComparison() {
         guard let comparison else {
             returnHome()
             return
         }
-
-        let isRealPractice = comparison.before.source == .recognized
-            && comparison.after.source == .recognized
-        guard isRealPractice else {
-            returnHome()
-            return
-        }
-
-        if historyPreference == .undecided, historyStore != nil {
-            isHistoryChoicePresented = true
-            return
-        }
-
-        if historyPreference == .enabled {
-            historyStore?.save(comparison)
-        }
-        returnHome()
+        finishPractice(.comparison(comparison))
     }
 
     func enableHistoryAndSave() {
         setHistoryEnabled(true)
-        if let comparison {
-            historyStore?.save(comparison)
-        }
+        savePendingHistoryCompletion()
         returnHome()
     }
 
@@ -368,8 +449,14 @@ final class TalkFitModel {
         reloadHistory()
     }
 
+    func deleteRecordingSession(id: UUID) {
+        try? recordingArchiveStore?.deleteSession(id: id)
+        reloadHistory()
+    }
+
     func reloadHistory() {
         practiceHistory = historyStore?.fetchAll() ?? []
+        recordingSessions = recordingArchiveStore?.fetchAll() ?? []
     }
 
     private func cancelTransientWork() {
@@ -467,20 +554,25 @@ final class TalkFitModel {
     }
 
     private func recordingPrompt(for round: PracticeRound) -> String {
-        if round == .retry, let firstResult {
-            return firstResult.prioritySegment
+        if round == .retry {
+            return retryPrompt
         }
         return activePrompt
     }
 
     private func scriptReference(for round: PracticeRound) -> ScriptPracticeReference? {
-        guard let scriptPractice, let paragraph = scriptPractice.selectedParagraph else {
+        guard let scriptPractice else {
             return nil
         }
-        let text = round == .retry ? (firstResult?.prioritySegment ?? paragraph.text) : paragraph.text
+        if round == .retry, let retryParagraph {
+            return ScriptPracticeReference(
+                text: retryParagraph.text,
+                paragraphNumber: retryParagraph.number,
+                paragraphCount: scriptPractice.paragraphs.count
+            )
+        }
         return ScriptPracticeReference(
-            text: text,
-            paragraphNumber: paragraph.number,
+            text: scriptPractice.fullText,
             paragraphCount: scriptPractice.paragraphs.count
         )
     }
@@ -494,6 +586,14 @@ final class TalkFitModel {
                 fillerWords: activeFillerWords
             )
         }
+        if round == .retry {
+            return TalkFitFixtures.scriptCapture(
+                for: .retry,
+                language: selectedLanguage,
+                script: retryPrompt,
+                fillerWords: activeFillerWords
+            )
+        }
         return TalkFitFixtures.sampleCapture(
             for: round,
             language: selectedLanguage,
@@ -501,6 +601,241 @@ final class TalkFitModel {
             fillerWords: activeFillerWords
         )
     }
+
+    private func shortPracticeBaseline(original: PracticeResult) -> PracticeResult {
+        let segment = original.prioritySegment
+        let totalUnits = max(1, original.language.speechUnitCount(in: original.transcript))
+        let segmentUnits = max(1, original.language.speechUnitCount(in: segment))
+        let proportionalDuration = max(
+            4,
+            original.duration * Double(segmentUnits) / Double(totalUnits)
+        )
+        let capture = SpeechCapture(
+            readableTranscript: segment,
+            analysisTranscript: segment,
+            fillerEvidence: [],
+            segments: [],
+            source: original.source
+        )
+        return TalkFitAnalyzer.makeResult(
+            capture: capture,
+            duration: proportionalDuration,
+            round: .first,
+            language: original.language,
+            context: original.context,
+            fillerWords: original.fillerWords
+        )
+    }
+
+    private func paragraphBaseline(
+        feedback: ScriptParagraphFeedback,
+        original: PracticeResult
+    ) -> PracticeResult {
+        let excerpt = feedback.spokenExcerpt.isEmpty
+            ? feedback.paragraph.text
+            : feedback.spokenExcerpt
+        let totalUnits = max(1, original.language.speechUnitCount(in: original.transcript))
+        let excerptUnits = max(1, original.language.speechUnitCount(in: excerpt))
+        let proportionalDuration = max(
+            4,
+            original.duration * Double(excerptUnits) / Double(totalUnits)
+        )
+        let capture = SpeechCapture(
+            readableTranscript: excerpt,
+            analysisTranscript: excerpt,
+            // Full-recording timestamps cannot be assigned to a paragraph
+            // reliably, so the scoped baseline uses only its visible words.
+            fillerEvidence: [],
+            segments: [],
+            source: original.source
+        )
+        return TalkFitAnalyzer.makeResult(
+            capture: capture,
+            duration: proportionalDuration,
+            round: .first,
+            language: original.language,
+            context: original.context,
+            scriptReference: ScriptPracticeReference(
+                text: feedback.paragraph.text,
+                paragraphNumber: feedback.paragraph.number,
+                paragraphCount: scriptPractice?.paragraphs.count ?? 1
+            ),
+            fillerWords: original.fillerWords
+        )
+    }
+
+    private func finishPractice(_ completion: PendingHistoryCompletion) {
+        let isRealPractice: Bool
+        switch completion {
+        case .result(let result):
+            isRealPractice = result.source == .recognized
+        case .comparison(let comparison):
+            isRealPractice = comparison.before.source == .recognized
+                && comparison.after.source == .recognized
+        }
+        guard isRealPractice else {
+            returnHome()
+            return
+        }
+
+        pendingHistoryCompletion = completion
+        if historyPreference == .undecided, historyStore != nil {
+            isHistoryChoicePresented = true
+            return
+        }
+        if historyPreference == .enabled {
+            savePendingHistoryCompletion()
+        }
+        returnHome()
+    }
+
+    private func savePendingHistoryCompletion() {
+        switch pendingHistoryCompletion {
+        case .result(let result):
+            historyStore?.save(result)
+        case .comparison(let comparison):
+            historyStore?.save(comparison)
+        case nil:
+            break
+        }
+        savePendingRecordingSession()
+        pendingHistoryCompletion = nil
+    }
+
+    @discardableResult
+    private func retainRecording(
+        at url: URL?,
+        for result: PracticeResult,
+        round: PracticeRound
+    ) -> Bool {
+        guard result.source == .recognized, let url else { return false }
+        let kind: RecordingArchiveAttemptKind
+        let paragraphNumber: Int?
+        switch round {
+        case .first:
+            kind = .initial
+            paragraphNumber = nil
+        case .retry:
+            if scriptPractice != nil, let retryParagraph {
+                kind = .segmentRetry
+                paragraphNumber = retryParagraph.number
+            } else {
+                kind = .fullRetry
+                paragraphNumber = nil
+            }
+        }
+        pendingRecordingAttempts.append(
+            RecordingArchiveAttemptDraft(
+                kind: kind,
+                paragraphNumber: paragraphNumber,
+                temporaryAudioURL: url,
+                duration: result.duration,
+                fillerCount: result.fillerTotal,
+                pace: result.pace,
+                stability: result.stability,
+                source: result.source
+            )
+        )
+        return true
+    }
+
+    private func savePendingRecordingSession() {
+        guard let recordingArchiveStore,
+              let firstResult,
+              let sessionID = pendingRecordingSessionID,
+              !pendingRecordingAttempts.isEmpty else {
+            return
+        }
+        let kind: RecordingArchiveSessionKind = scriptPractice == nil
+            ? .shortPractice
+            : .scriptPractice
+        let title = scriptPractice == nil
+            ? firstResult.historyPromptTitle
+            : "自訂講稿"
+        let draft = RecordingArchiveSessionDraft(
+            id: sessionID,
+            createdAt: pendingRecordingStartedAt ?? .now,
+            kind: kind,
+            title: title,
+            language: firstResult.language,
+            context: firstResult.context,
+            paragraphCount: scriptPractice?.paragraphs.count,
+            attempts: pendingRecordingAttempts
+        )
+        try? recordingArchiveStore.importSession(draft)
+        recordingSessions = recordingArchiveStore.fetchAll()
+    }
+
+    private func discardPendingRecordings() {
+        pendingRecordingAttempts.forEach { attempt in
+            try? FileManager.default.removeItem(at: attempt.temporaryAudioURL)
+        }
+        pendingRecordingAttempts = []
+        pendingRecordingSessionID = nil
+        pendingRecordingStartedAt = nil
+    }
+
+#if DEBUG
+    func loadRecordingArchiveQAFixtures(now: Date = .now) {
+        let unavailableURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("talkfit-qa-recording.caf")
+        func attempt(
+            sequence: Int,
+            kind: RecordingArchiveAttemptKind,
+            paragraphNumber: Int? = nil,
+            duration: TimeInterval,
+            fillerCount: Int,
+            pace: Int,
+            stability: Int
+        ) -> RecordingArchiveAttemptSummary {
+            RecordingArchiveAttemptSummary(
+                id: UUID(),
+                capturedAt: now.addingTimeInterval(TimeInterval(sequence * 40)),
+                sequence: sequence,
+                kind: kind,
+                paragraphNumber: paragraphNumber,
+                relativeAudioPath: "qa/fixture.caf",
+                audioURL: unavailableURL,
+                audioIsAvailable: false,
+                duration: duration,
+                fillerCount: fillerCount,
+                pace: pace,
+                stability: stability
+            )
+        }
+        recordingSessions = [
+            RecordingArchiveSessionSummary(
+                id: UUID(),
+                createdAt: now,
+                completedAt: now,
+                kind: .shortPractice,
+                title: "30 秒自我介紹",
+                language: .traditionalChinese,
+                context: .selfIntroduction,
+                paragraphCount: nil,
+                attempts: [
+                    attempt(sequence: 0, kind: .initial, duration: 30, fillerCount: 3, pace: 212, stability: 71),
+                    attempt(sequence: 1, kind: .fullRetry, duration: 24, fillerCount: 1, pace: 190, stability: 84)
+                ]
+            ),
+            RecordingArchiveSessionSummary(
+                id: UUID(),
+                createdAt: now.addingTimeInterval(-86_400),
+                completedAt: now.addingTimeInterval(-86_400),
+                kind: .scriptPractice,
+                title: "自訂講稿",
+                language: .traditionalChinese,
+                context: .presentation,
+                paragraphCount: 5,
+                attempts: [
+                    attempt(sequence: 0, kind: .initial, duration: 182, fillerCount: 12, pace: 176, stability: 68),
+                    attempt(sequence: 1, kind: .segmentRetry, paragraphNumber: 2, duration: 28, fillerCount: 2, pace: 165, stability: 80),
+                    attempt(sequence: 2, kind: .segmentRetry, paragraphNumber: 4, duration: 25, fillerCount: 1, pace: 158, stability: 86)
+                ]
+            )
+        ]
+    }
+#endif
 
 }
 

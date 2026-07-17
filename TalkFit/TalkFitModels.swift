@@ -91,6 +91,7 @@ struct SpeechCapture: Equatable {
     var fillerEvidence: [FillerEvidence]
     var segments: [SpeechTextSegment]
     var source: ResultSource
+    var recordedFileURL: URL? = nil
 
     static let empty = SpeechCapture(
         readableTranscript: "",
@@ -296,13 +297,9 @@ enum TalkFitFixtures {
         fillerWords: [String]
     ) -> SpeechCapture {
         let trimmedScript = script.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanScript = round == .retry
-            ? TalkFitAnalyzer.removingFillers(
-                from: trimmedScript,
-                fillerWords: fillerWords,
-                language: language
-            )
-            : trimmedScript
+        // A user's script is reference content, so demo mode must never rewrite
+        // legitimate words merely because they also appear in the filler library.
+        let cleanScript = trimmedScript
         let evidenceTranscript: String
         if round == .first {
             evidenceTranscript = language == .traditionalChinese

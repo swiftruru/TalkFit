@@ -41,7 +41,7 @@ struct PracticeHistoryView: View {
                 recordToDelete = nil
             }
         } message: {
-            Text("只會刪除這筆摘要；這個動作無法復原。")
+            Text("只會刪除這筆趨勢摘要；錄音請到「紀錄」分頁管理。這個動作無法復原。")
         }
         .alert("清除所有練習紀錄？", isPresented: $showsClearConfirmation) {
             Button("保留", role: .cancel) {}
@@ -49,7 +49,7 @@ struct PracticeHistoryView: View {
                 model.deleteAllHistory()
             }
         } message: {
-            Text("所有保存在這台 iPhone 的練習摘要都會被刪除，且無法復原。")
+            Text("所有趨勢摘要都會被刪除；錄音請到「紀錄」分頁管理。這個動作無法復原。")
         }
     }
 
@@ -74,7 +74,7 @@ struct PracticeHistoryView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Toggle(isOn: historyEnabledBinding) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("保存練習摘要")
+                        Text("保存練習摘要與錄音")
                             .font(.body.weight(.semibold))
                         Text(model.isHistoryEnabled ? "完成真實練習後，自動留下一筆" : "目前不會新增任何練習紀錄")
                             .font(.caption)
@@ -87,7 +87,7 @@ struct PracticeHistoryView: View {
                 Divider().overlay(TalkFitTheme.line)
 
                 Label {
-                    Text("只保存日期、語言與前後指標。不保存錄音、逐字稿、逐句內容或贅字時間戳。")
+                    Text("真實錄音會保存在這台 iPhone；不保存講稿、逐字稿、逐句內容或贅字時間戳。示範練習不會寫入。")
                         .font(.caption)
                         .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
                         .fixedSize(horizontal: false, vertical: true)
@@ -150,7 +150,7 @@ struct PracticeHistoryView: View {
                     .font(.subheadline.weight(.semibold))
                 Text(model.isHistoryEnabled
                      ? "完成一次真實練習與重練後，進步摘要會出現在這裡。"
-                     : "開啟後，也只會保存不含錄音與逐字稿的摘要。")
+                     : "開啟後，完成並收下的真實練習會保存摘要與錄音。")
                     .font(.caption)
                     .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)

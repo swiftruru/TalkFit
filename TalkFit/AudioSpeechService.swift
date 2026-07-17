@@ -22,6 +22,8 @@ final class AudioSpeechService {
     private var recognitionError: Error?
     private var currentLanguage: PracticeLanguage = .traditionalChinese
     private var currentFillerWords = PracticeLanguage.traditionalChinese.defaultFillerWords
+    private var recordingFile: AVAudioFile?
+    private var recordingFileURL: URL?
     private var tapInstalled = false
 
     private(set) var latestCapture = SpeechCapture.empty
@@ -123,8 +125,26 @@ final class AudioSpeechService {
             cancel()
             throw AudioSpeechError.inputUnavailable
         }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self, request] buffer, _ in
+
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TalkFitRecordings", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: temporaryDirectory,
+            withIntermediateDirectories: true
+        )
+        let recordingURL = temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("caf")
+        let recordingFile = try AVAudioFile(
+            forWriting: recordingURL,
+            settings: format.settings
+        )
+        self.recordingFile = recordingFile
+        recordingFileURL = recordingURL
+
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self, request, recordingFile] buffer, _ in
             request.append(buffer)
+            try? recordingFile.write(from: buffer)
             guard let channel = buffer.floatChannelData?.pointee else { return }
             let frameLength = Int(buffer.frameLength)
             guard frameLength > 0 else { return }
@@ -151,6 +171,7 @@ final class AudioSpeechService {
     func finish() async -> SpeechCapture {
         stopAudioInput()
         guard recognitionTask != nil else {
+            finalizeRecordedAudio()
             deactivateAudioSession()
             return latestCapture
         }
@@ -159,6 +180,7 @@ final class AudioSpeechService {
             recognitionTask?.cancel()
             recognitionTask = nil
             recognitionRequest = nil
+            finalizeRecordedAudio()
             deactivateAudioSession()
             return latestCapture
         }
@@ -180,6 +202,9 @@ final class AudioSpeechService {
 
     func cancel() {
         stopAudioInput()
+        let abandonedRecordingURL = recordingFileURL
+        recordingFile = nil
+        recordingFileURL = nil
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -192,6 +217,9 @@ final class AudioSpeechService {
             continuation.resume(returning: latestCapture)
         }
         latestCapture = .empty
+        if let abandonedRecordingURL {
+            try? FileManager.default.removeItem(at: abandonedRecordingURL)
+        }
         deactivateAudioSession()
         levelDidChange(0)
     }
@@ -302,11 +330,18 @@ final class AudioSpeechService {
         recognitionTask?.finish()
         recognitionTask = nil
         recognitionRequest = nil
+        finalizeRecordedAudio()
         deactivateAudioSession()
         levelDidChange(0)
         guard let continuation = finishContinuation else { return }
         finishContinuation = nil
         continuation.resume(returning: latestCapture)
+    }
+
+    private func finalizeRecordedAudio() {
+        recordingFile = nil
+        latestCapture.recordedFileURL = recordingFileURL
+        recordingFileURL = nil
     }
 
     private func stopAudioInput() {

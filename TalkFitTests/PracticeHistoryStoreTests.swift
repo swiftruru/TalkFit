@@ -13,6 +13,23 @@ struct PracticeHistoryStoreTests {
         #expect(fixture.store.fetchAll().isEmpty)
     }
 
+    @Test("舊版摘要同意不會被當成錄音同意，但舊版拒絕仍會保留")
+    func legacyPreferenceRequiresFreshAudioConsent() throws {
+        let enabledFixture = try makeStore()
+        enabledFixture.defaults.set(
+            HistoryPreference.enabled.rawValue,
+            forKey: "talkfit.practice-history.preference.v1"
+        )
+        #expect(enabledFixture.store.preference == .undecided)
+
+        let disabledFixture = try makeStore()
+        disabledFixture.defaults.set(
+            HistoryPreference.disabled.rawValue,
+            forKey: "talkfit.practice-history.preference.v1"
+        )
+        #expect(disabledFixture.store.preference == .disabled)
+    }
+
     @Test("只保存真實練習的前後摘要")
     func savesRecognizedSummary() throws {
         let fixture = try makeStore()
@@ -35,6 +52,30 @@ struct PracticeHistoryStoreTests {
         #expect(saved.beforeStability == 58)
         #expect(saved.afterStability == 82)
         #expect(saved.fillerImprovement == 2)
+    }
+
+    @Test("使用者不重錄也能保存單次練習摘要")
+    func savesSingleRecognizedResult() throws {
+        let fixture = try makeStore()
+        fixture.store.setPreference(.enabled)
+        let completedAt = Date(timeIntervalSince1970: 1_850_000_000)
+        let practice = result(
+            transcript: "大家好，我正在練習把提案說清楚。",
+            fillerCounts: ["嗯": 1],
+            pace: 188,
+            stability: 74,
+            context: .presentation,
+            source: .recognized
+        )
+
+        #expect(fixture.store.save(practice, completedAt: completedAt))
+        let saved = try #require(fixture.store.fetchAll().first)
+
+        #expect(saved.completedAt == completedAt)
+        #expect(saved.beforeFillerCount == saved.afterFillerCount)
+        #expect(saved.beforePace == saved.afterPace)
+        #expect(saved.beforeStability == saved.afterStability)
+        #expect(saved.improvementNote == "完成一次專注練習")
     }
 
     @Test("未開啟與示範結果都不寫入歷史")
@@ -111,7 +152,8 @@ struct PracticeHistoryStoreTests {
 
     private func makeStore() throws -> (
         container: ModelContainer,
-        store: PracticeHistoryStore
+        store: PracticeHistoryStore,
+        defaults: UserDefaults
     ) {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -126,7 +168,8 @@ struct PracticeHistoryStoreTests {
             PracticeHistoryStore(
                 modelContext: container.mainContext,
                 defaults: defaults
-            )
+            ),
+            defaults
         )
     }
 
