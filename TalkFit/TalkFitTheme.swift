@@ -130,6 +130,75 @@ struct BrandHeader: View {
     }
 }
 
+struct GardenLeavePrompt {
+    let title: String
+    let message: String
+    let leaveTitle: String
+    let stayTitle: String
+}
+
+struct GardenNavigationHeader: View {
+    let destination: String
+    let prompt: GardenLeavePrompt?
+    var confirmationDidChange: (Bool) -> Void = { _ in }
+    let action: () -> Void
+
+    @State private var showsConfirmation = false
+
+    var body: some View {
+        ZStack {
+            Text("TalkFit")
+                .font(.system(.headline, design: .serif, weight: .medium))
+                .foregroundStyle(TalkFitTheme.ink.opacity(0.78))
+
+            HStack {
+                Button {
+                    if prompt == nil {
+                        action()
+                    } else {
+                        showsConfirmation = true
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.left")
+                            .font(.subheadline.weight(.bold))
+                        Text(destination)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(TalkFitTheme.pine)
+                    .padding(.horizontal, 11)
+                    .frame(minHeight: 44)
+                    .background(TalkFitTheme.paperLight.opacity(0.78), in: Capsule())
+                    .overlay {
+                        Capsule().stroke(TalkFitTheme.line, lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("返回\(destination)")
+                .accessibilityHint(prompt == nil ? "立即返回" : "返回前會先確認")
+
+                Spacer()
+
+                Image(systemName: "leaf.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(TalkFitTheme.sage)
+                    .frame(width: 44, height: 44)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(minHeight: 44)
+        .alert(prompt?.title ?? "", isPresented: $showsConfirmation) {
+            Button(prompt?.stayTitle ?? "留在這裡", role: .cancel) {}
+            Button(prompt?.leaveTitle ?? "離開", role: .destructive, action: action)
+        } message: {
+            Text(prompt?.message ?? "")
+        }
+        .onChange(of: showsConfirmation) { _, isPresented in
+            confirmationDidChange(isPresented)
+        }
+    }
+}
+
 struct MetricPair: View {
     let title: String
     let before: String

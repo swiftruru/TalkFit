@@ -9,7 +9,7 @@ enum PracticeRound: Equatable {
 enum PracticeStage: Equatable {
     case home
     case recording(PracticeRound)
-    case analyzing
+    case analyzing(PracticeRound)
     case report
     case retry
     case comparison
@@ -27,24 +27,146 @@ enum ResultSource: Equatable {
     }
 }
 
+enum FillerEvidenceSource: Equatable {
+    case partial
+    case alternative
+    case final
+    case sample
+}
+
+struct FillerEvidence: Identifiable, Equatable {
+    let id: UUID
+    let word: String
+    let timestamp: TimeInterval
+    let confidence: Float
+    let source: FillerEvidenceSource
+
+    init(
+        id: UUID = UUID(),
+        word: String,
+        timestamp: TimeInterval,
+        confidence: Float,
+        source: FillerEvidenceSource
+    ) {
+        self.id = id
+        self.word = word
+        self.timestamp = timestamp
+        self.confidence = confidence
+        self.source = source
+    }
+
+    var timestampLabel: String {
+        let seconds = max(0, Int(timestamp.rounded()))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+struct SpeechCapture: Equatable {
+    var readableTranscript: String
+    var analysisTranscript: String
+    var fillerEvidence: [FillerEvidence]
+    var segments: [SpeechTextSegment]
+    var source: ResultSource
+
+    static let empty = SpeechCapture(
+        readableTranscript: "",
+        analysisTranscript: "",
+        fillerEvidence: [],
+        segments: [],
+        source: .recognized
+    )
+}
+
 struct PracticeResult: Equatable {
     let transcript: String
     let duration: TimeInterval
     let fillerCounts: [String: Int]
+    let fillerEvidence: [FillerEvidence]
+    let fillerWords: [String]
+    let language: PracticeLanguage
+    let context: PracticeContext
+    let scriptReference: ScriptPracticeReference?
+    let scriptComparison: ScriptSpeechComparison?
+    let sentencePaces: [SentencePaceFeedback]
     let pace: Int
     let stability: Int
     let prioritySegment: String
     let coachingCue: String
     let source: ResultSource
 
+    init(
+        transcript: String,
+        duration: TimeInterval,
+        fillerCounts: [String: Int],
+        fillerEvidence: [FillerEvidence],
+        fillerWords: [String],
+        language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction,
+        scriptReference: ScriptPracticeReference? = nil,
+        scriptComparison: ScriptSpeechComparison? = nil,
+        sentencePaces: [SentencePaceFeedback],
+        pace: Int,
+        stability: Int,
+        prioritySegment: String,
+        coachingCue: String,
+        source: ResultSource
+    ) {
+        self.transcript = transcript
+        self.duration = duration
+        self.fillerCounts = fillerCounts
+        self.fillerEvidence = fillerEvidence
+        self.fillerWords = fillerWords
+        self.language = language
+        self.context = context
+        self.scriptReference = scriptReference
+        self.scriptComparison = scriptComparison
+        self.sentencePaces = sentencePaces
+        self.pace = pace
+        self.stability = stability
+        self.prioritySegment = prioritySegment
+        self.coachingCue = coachingCue
+        self.source = source
+    }
+
     var fillerTotal: Int { fillerCounts.values.reduce(0, +) }
 
+    var practiceTitle: String {
+        scriptReference?.title ?? context.displayName
+    }
+
+    var historyPromptIdentifier: String {
+        scriptReference == nil ? context.rawValue : "custom-script"
+    }
+
+    var historyPromptTitle: String {
+        scriptReference == nil ? context.promptTitle(for: language) : "自訂講稿"
+    }
+
+    var additionalFillerEvidence: [FillerEvidence] {
+        var visibleCounts = TalkFitAnalyzer.fillerCounts(
+            in: transcript,
+            fillerWords: fillerWords,
+            language: language
+        )
+        return fillerEvidence
+            .sorted { $0.timestamp < $1.timestamp }
+            .filter { event in
+                if (visibleCounts[event.word] ?? 0) > 0 {
+                    visibleCounts[event.word, default: 0] -= 1
+                    return false
+                }
+                return true
+            }
+    }
+
     var paceLabel: String {
-        switch pace {
-        case ..<170: "稍慢"
-        case 170...235: "舒服"
-        default: "稍快"
-        }
+        context.paceState(for: pace, language: language).label
+    }
+
+    var paceUnit: String { language.paceUnit }
+
+    var rhythmSummary: RhythmSummary {
+        RhythmSummary(feedback: sentencePaces)
     }
 
     var durationLabel: String {
@@ -54,16 +176,17 @@ struct PracticeResult: Equatable {
 
     var highlightedTranscript: AttributedString {
         var attributed = AttributedString(transcript)
-        for filler in TalkFitFixtures.fillerWords {
-            var searchStart = transcript.startIndex
-            while searchStart < transcript.endIndex,
-                  let range = transcript.range(of: filler, range: searchStart..<transcript.endIndex) {
+        for filler in fillerWords {
+            for range in TalkFitAnalyzer.ranges(
+                of: filler,
+                in: transcript,
+                language: language
+            ) {
                 if let attributedRange = Range(range, in: attributed) {
                     attributed[attributedRange].backgroundColor = TalkFitTheme.clay.opacity(0.2)
                     attributed[attributedRange].foregroundColor = TalkFitTheme.clay
                     attributed[attributedRange].font = .body.bold()
                 }
-                searchStart = range.upperBound
             }
         }
         return attributed
@@ -76,26 +199,96 @@ struct ComparisonResult: Equatable {
 
     var fillerImprovement: Int { max(0, before.fillerTotal - after.fillerTotal) }
     var stabilityImprovement: Int { max(0, after.stability - before.stability) }
-}
+    var rhythmIssueImprovement: Int {
+        max(0, before.rhythmSummary.issueCount - after.rhythmSummary.issueCount)
+    }
 
-struct PracticeHistory: Identifiable {
-    let id = UUID()
-    let title: String
-    let date: String
-    let note: String
+    var rhythmImprovementLabel: String {
+        rhythmIssueImprovement > 0
+            ? "少了 \(rhythmIssueImprovement) 個節奏提醒"
+            : "停頓更自然"
+    }
 }
 
 enum TalkFitFixtures {
-    static let promptTitle = "30 秒自我介紹"
-    static let prompt = "介紹你是誰、最近在做什麼，以及一件你想讓別人記住的事。"
-    static let fillerWords = ["嗯", "呃", "然後", "就是", "這個", "那個", "其實", "對"]
+    static func sampleCapture(
+        for round: PracticeRound,
+        language: PracticeLanguage,
+        context: PracticeContext = .selfIntroduction,
+        fillerWords: [String]
+    ) -> SpeechCapture {
+        let evidenceTranscript = context.sampleTranscript(for: round, language: language)
+        let readableTranscript: String
+        if round == .first, language == .traditionalChinese {
+            readableTranscript = evidenceTranscript.replacingOccurrences(of: "嗯，", with: "")
+        } else if round == .first {
+            readableTranscript = evidenceTranscript.replacingOccurrences(
+                of: "Um, ",
+                with: "",
+                options: [.caseInsensitive]
+            )
+        } else {
+            readableTranscript = evidenceTranscript
+        }
+        let duration: TimeInterval = round == .first ? 31 : 22
+        return SpeechCapture(
+            readableTranscript: readableTranscript,
+            analysisTranscript: evidenceTranscript,
+            fillerEvidence: TalkFitAnalyzer.sampleEvidence(
+                in: evidenceTranscript,
+                duration: duration,
+                fillerWords: fillerWords,
+                language: language
+            ),
+            segments: TalkFitAnalyzer.sampleSegments(
+                in: readableTranscript,
+                duration: duration,
+                language: language,
+                round: round
+            ),
+            source: .sample
+        )
+    }
 
-    static let sampleFirstTranscript = "大家好，我是小安。嗯，我最近正在學習產品設計，然後也開始練習把想法說得更清楚。其實我很喜歡觀察生活裡的小細節，就是希望未來能做出讓人感到貼心的產品。"
-    static let sampleRetryTranscript = "大家好，我是小安。我最近正在學習產品設計，也開始練習把想法說得更清楚。我希望未來能做出讓人感到貼心的產品。"
-
-    static let history = [
-        PracticeHistory(title: "專案近況", date: "昨天", note: "開頭更俐落了"),
-        PracticeHistory(title: "30 秒自我介紹", date: "3 天前", note: "少了 2 個「然後」"),
-        PracticeHistory(title: "會議提案", date: "上週", note: "語速更穩定")
-    ]
+    static func scriptCapture(
+        for round: PracticeRound,
+        language: PracticeLanguage,
+        script: String,
+        fillerWords: [String]
+    ) -> SpeechCapture {
+        let trimmedScript = script.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanScript = round == .retry
+            ? TalkFitAnalyzer.removingFillers(
+                from: trimmedScript,
+                fillerWords: fillerWords,
+                language: language
+            )
+            : trimmedScript
+        let evidenceTranscript: String
+        if round == .first {
+            evidenceTranscript = language == .traditionalChinese
+                ? "嗯，\(cleanScript)"
+                : "Um, \(cleanScript)"
+        } else {
+            evidenceTranscript = cleanScript
+        }
+        let duration: TimeInterval = round == .first ? 31 : 22
+        return SpeechCapture(
+            readableTranscript: cleanScript,
+            analysisTranscript: evidenceTranscript,
+            fillerEvidence: TalkFitAnalyzer.sampleEvidence(
+                in: evidenceTranscript,
+                duration: duration,
+                fillerWords: fillerWords,
+                language: language
+            ),
+            segments: TalkFitAnalyzer.sampleSegments(
+                in: cleanScript,
+                duration: duration,
+                language: language,
+                round: round
+            ),
+            source: .sample
+        )
+    }
 }

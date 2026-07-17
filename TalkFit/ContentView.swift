@@ -1,19 +1,20 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var model = TalkFitModel()
+    let model: TalkFitModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             PaperBackground()
             screen
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .transition(.opacity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(TalkFitTheme.pine)
         .foregroundStyle(TalkFitTheme.ink)
-        .animation(.easeInOut(duration: 0.35), value: model.stage)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: model.stage)
     }
 
     @ViewBuilder
@@ -23,8 +24,8 @@ struct ContentView: View {
             HomeView(model: model)
         case .recording(let round):
             RecordingView(model: model, round: round)
-        case .analyzing:
-            AnalysisView()
+        case .analyzing(let round):
+            AnalysisView(model: model, round: round)
         case .report:
             if let result = model.firstResult {
                 ReportView(model: model, result: result)
@@ -41,124 +42,6 @@ struct ContentView: View {
     }
 }
 
-private struct HomeView: View {
-    let model: TalkFitModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TalkFitTheme.sectionSpacing) {
-                BrandHeader()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("今天，讓表達自然長出來")
-                        .font(.system(.title2, design: .serif, weight: .semibold))
-                    Text("用 30 秒，練習說得更清楚一點。")
-                        .font(.subheadline)
-                        .foregroundStyle(TalkFitTheme.ink.opacity(0.65))
-                }
-
-                growthStrip
-                promptSheet
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("最近的練習")
-                        .font(.headline)
-                    ForEach(TalkFitFixtures.history) { item in
-                        HStack(spacing: 12) {
-                            Image(systemName: "leaf")
-                                .foregroundStyle(TalkFitTheme.sage)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title).font(.subheadline.weight(.semibold))
-                                Text(item.note).font(.caption).foregroundStyle(TalkFitTheme.moss)
-                            }
-                            Spacer()
-                            Text(item.date).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.48))
-                        }
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 4)
-                        if item.id != TalkFitFixtures.history.last?.id {
-                            Divider().overlay(TalkFitTheme.line)
-                        }
-                    }
-                }
-            }
-            .talkFitPageInsets(bottom: 132)
-        }
-        .safeAreaInset(edge: .bottom) {
-            BottomActionBar {
-                VStack(spacing: 10) {
-                    Button {
-                        model.startPractice()
-                    } label: {
-                        Label("開始 30 秒練習", systemImage: "mic.fill")
-                    }
-                    .buttonStyle(PrimaryActionStyle())
-                    .accessibilityIdentifier("home.start")
-
-                    Button("示範練習") {
-                        model.startPractice(demo: true)
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(TalkFitTheme.moss)
-                    .accessibilityHint("不使用麥克風，以固定內容體驗完整流程")
-                    .accessibilityIdentifier("home.demo")
-                }
-            }
-        }
-    }
-
-    private var growthStrip: some View {
-        HStack(spacing: 0) {
-            growthItem(value: "−35%", label: "贅字")
-            Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            growthItem(value: "更穩", label: "語速")
-            Divider().frame(height: 34).overlay(TalkFitTheme.line)
-            growthItem(value: "3 次", label: "已練習")
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 14)
-        .background(TalkFitTheme.sageSoft.opacity(0.45), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("成長摘要：贅字減少百分之三十五，語速更穩，已完成三次練習")
-    }
-
-    private func growthItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.headline).foregroundStyle(TalkFitTheme.pine)
-            Text(label).font(.caption2).foregroundStyle(TalkFitTheme.ink.opacity(0.62))
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var promptSheet: some View {
-        NotebookSection(title: "今日推薦") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
-                    Text(TalkFitFixtures.promptTitle)
-                        .font(.system(.title2, design: .serif, weight: .bold))
-                        .layoutPriority(1)
-                    Spacer()
-                    Text("30 秒")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(TalkFitTheme.clay)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(TalkFitTheme.clay.opacity(0.12), in: Capsule())
-                }
-                Text(TalkFitFixtures.prompt)
-                    .font(.body)
-                    .foregroundStyle(TalkFitTheme.ink.opacity(0.75))
-                    .fixedSize(horizontal: false, vertical: true)
-                Rectangle()
-                    .fill(TalkFitTheme.clay)
-                    .frame(width: 66, height: 2)
-                    .accessibilityHidden(true)
-            }
-        }
-    }
-}
-
 private struct RecordingView: View {
     let model: TalkFitModel
     let round: PracticeRound
@@ -170,7 +53,16 @@ private struct RecordingView: View {
 
     var body: some View {
         VStack(spacing: 26) {
-            BrandHeader(compact: true)
+            GardenNavigationHeader(
+                destination: round == .first ? "首頁" : "重練",
+                prompt: leavePrompt
+            ) {
+                if round == .first {
+                    model.returnHome()
+                } else {
+                    model.cancelRetryAndReturnToPreparation()
+                }
+            }
 
             VStack(spacing: 7) {
                 Text(round == .first ? "正在聽你說" : "正在重練這一段")
@@ -193,8 +85,37 @@ private struct RecordingView: View {
                     .padding(.horizontal, 12)
             }
 
+            if !model.liveFillerEvidence.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("剛剛聽到", systemImage: "waveform.badge.mic")
+                        .font(.caption.weight(.semibold))
+                    HStack(spacing: 7) {
+                        ForEach(Array(model.liveFillerEvidence.suffix(3))) { event in
+                            Text("\(event.word) · \(event.timestampLabel)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background(TalkFitTheme.clay.opacity(0.1), in: Capsule())
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(TalkFitTheme.clay)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("已捕捉 \(model.liveFillerEvidence.count) 個可能的贅字")
+            }
+
+            if let latestPace = model.liveSentencePaces.last {
+                LivePaceNote(
+                    feedback: latestPace,
+                    language: model.selectedLanguage
+                )
+            }
+
             NotebookSection(title: round == .first ? "題目" : "這次只練一句") {
-                Text(round == .first ? TalkFitFixtures.prompt : (model.firstResult?.prioritySegment ?? ""))
+                Text(round == .first
+                     ? model.activePrompt
+                     : (model.firstResult?.prioritySegment ?? ""))
                     .font(.body.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -224,6 +145,24 @@ private struct RecordingView: View {
         }
         .talkFitPageInsets(bottom: 16)
     }
+
+    private var leavePrompt: GardenLeavePrompt {
+        if round == .first {
+            GardenLeavePrompt(
+                title: "要離開這次錄音嗎？",
+                message: "目前錄下的內容與即時逐字稿不會保留。",
+                leaveTitle: "離開練習",
+                stayTitle: "繼續錄音"
+            )
+        } else {
+            GardenLeavePrompt(
+                title: "要放棄這次重練嗎？",
+                message: "這次重練的錄音不會保留，但原本的練習回饋還在。",
+                leaveTitle: "放棄這次重練",
+                stayTitle: "繼續錄音"
+            )
+        }
+    }
 }
 
 private struct WaveformView: View {
@@ -247,35 +186,63 @@ private struct WaveformView: View {
 }
 
 private struct AnalysisView: View {
+    let model: TalkFitModel
+    let round: PracticeRound
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var growing = false
 
     var body: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            ZStack {
-                Circle()
-                    .stroke(TalkFitTheme.sage.opacity(0.25), lineWidth: 2)
-                    .frame(width: 116, height: 116)
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 46))
-                    .foregroundStyle(TalkFitTheme.moss)
-                    .scaleEffect(growing ? 1.08 : 0.82)
-                    .rotationEffect(.degrees(growing ? 7 : -7))
+        VStack(spacing: 0) {
+            GardenNavigationHeader(
+                destination: round == .first ? "首頁" : "重練",
+                prompt: leavePrompt,
+                confirmationDidChange: model.setAnalysisPaused
+            ) {
+                if round == .first {
+                    model.returnHome()
+                } else {
+                    model.cancelRetryAndReturnToPreparation()
+                }
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: growing)
-            Text("正在整理你的表達")
-                .font(.system(.title2, design: .serif, weight: .semibold))
-            Text("找出最值得先重練的一小段")
-                .font(.subheadline)
-                .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
-            ProgressView()
-                .tint(TalkFitTheme.moss)
-                .accessibilityLabel("正在分析")
-            Spacer()
+
+            VStack(spacing: 22) {
+                Spacer()
+                ZStack {
+                    Circle()
+                        .stroke(TalkFitTheme.sage.opacity(0.25), lineWidth: 2)
+                        .frame(width: 116, height: 116)
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 46))
+                        .foregroundStyle(TalkFitTheme.moss)
+                        .scaleEffect(growing ? 1.08 : 0.82)
+                        .rotationEffect(.degrees(growing ? 7 : -7))
+                }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: growing)
+                Text("正在整理你的表達")
+                    .font(.system(.title2, design: .serif, weight: .semibold))
+                Text("找出最值得先重練的一小段")
+                    .font(.subheadline)
+                    .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                ProgressView()
+                    .tint(TalkFitTheme.moss)
+                    .accessibilityLabel("正在分析")
+                Spacer()
+            }
         }
-        .padding(.horizontal, TalkFitTheme.pageGutter)
+        .talkFitPageInsets(bottom: 16)
         .onAppear { growing = true }
+    }
+
+    private var leavePrompt: GardenLeavePrompt {
+        GardenLeavePrompt(
+            title: round == .first ? "停止整理並離開嗎？" : "停止整理這次重練嗎？",
+            message: round == .first
+                ? "剛完成的錄音與分析結果不會保留。"
+                : "這次重練結果不會保留，但原本的練習回饋還在。",
+            leaveTitle: round == .first ? "離開練習" : "放棄這次重練",
+            stayTitle: "繼續整理"
+        )
     }
 }
 
@@ -286,10 +253,20 @@ private struct ReportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                BrandHeader(compact: true)
+                GardenNavigationHeader(
+                    destination: "首頁",
+                    prompt: GardenLeavePrompt(
+                        title: "要離開這份回饋嗎？",
+                        message: "這次練習尚未完成重練，返回首頁後回饋不會保留。",
+                        leaveTitle: "返回首頁",
+                        stayTitle: "繼續查看"
+                    )
+                ) {
+                    model.returnHome()
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(result.source.label)
+                    Text("\(result.practiceTitle) · \(result.source.label)")
                         .font(.caption.weight(.semibold))
                         .tracking(1.2)
                         .foregroundStyle(TalkFitTheme.moss)
@@ -323,11 +300,44 @@ private struct ReportView: View {
                     .accessibilityIdentifier("report.retry")
                 }
 
-                NotebookSection(title: "逐字稿 · 橘色是贅字") {
-                    Text(result.highlightedTranscript)
-                        .font(.body)
-                        .lineSpacing(5)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let scriptComparison = result.scriptComparison {
+                    ScriptComparisonSection(comparison: scriptComparison)
+                }
+
+                NotebookSection(title: "逐字稿 · 橘色是文字中的贅字") {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(result.highlightedTranscript)
+                            .font(.body)
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if !result.additionalFillerEvidence.isEmpty {
+                            Divider().overlay(TalkFitTheme.line)
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("聲音裡還聽到", systemImage: "waveform")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(TalkFitTheme.clay)
+                                VStack(alignment: .leading, spacing: 7) {
+                                    ForEach(result.additionalFillerEvidence) { event in
+                                        HStack(spacing: 8) {
+                                            Text(event.word)
+                                                .font(.caption.weight(.bold))
+                                            Text(event.timestampLabel)
+                                                .font(.caption.monospacedDigit())
+                                            Spacer(minLength: 0)
+                                        }
+                                        .foregroundStyle(TalkFitTheme.clay)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 7)
+                                        .background(TalkFitTheme.clay.opacity(0.1), in: Capsule())
+                                    }
+                                }
+                                Text("逐字稿省略的語氣聲，也已計入這次練習。")
+                                    .font(.caption)
+                                    .foregroundStyle(TalkFitTheme.ink.opacity(0.6))
+                            }
+                        }
+                    }
                 }
 
                 NotebookSection(title: "這次的節奏") {
@@ -335,7 +345,7 @@ private struct ReportView: View {
                         HStack(alignment: .firstTextBaseline) {
                             Text("\(result.pace)")
                                 .font(.system(.title, design: .rounded, weight: .bold))
-                            Text("字／分鐘 · \(result.paceLabel)")
+                            Text("\(result.paceUnit) · \(result.paceLabel)")
                                 .font(.subheadline)
                                 .foregroundStyle(TalkFitTheme.moss)
                             Spacer()
@@ -343,10 +353,24 @@ private struct ReportView: View {
                                 .font(.caption)
                                 .foregroundStyle(TalkFitTheme.ink.opacity(0.55))
                         }
-                        PaceScale(pace: result.pace)
+                        PaceScale(
+                            pace: result.pace,
+                            language: result.language,
+                            context: result.context
+                        )
+                        RhythmSummaryNote(summary: result.rhythmSummary)
                         Text("贅字 \(result.fillerTotal) 個 · 穩定度 \(result.stability)%")
                             .font(.caption)
                             .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                    }
+                }
+
+                if !result.sentencePaces.isEmpty {
+                    NotebookSection(title: "逐句語速建議") {
+                        SentencePaceList(
+                            feedback: result.sentencePaces,
+                            language: result.language
+                        )
                     }
                 }
             }
@@ -364,23 +388,64 @@ private struct ReportView: View {
     }
 }
 
-private struct PaceScale: View {
-    let pace: Int
+private struct ScriptComparisonSection: View {
+    let comparison: ScriptSpeechComparison
 
     var body: some View {
-        GeometryReader { geometry in
-            let progress = min(1, max(0, CGFloat(pace - 110) / 190))
-            ZStack(alignment: .leading) {
-                Capsule().fill(TalkFitTheme.sageSoft.opacity(0.72)).frame(height: 10)
-                Capsule().fill(TalkFitTheme.moss).frame(width: max(12, geometry.size.width * progress), height: 10)
-                Circle()
-                    .fill(TalkFitTheme.clay)
-                    .frame(width: 18, height: 18)
-                    .offset(x: min(geometry.size.width - 18, max(0, geometry.size.width * progress - 9)))
+        NotebookSection(title: "講稿對照 · 不要求逐字背誦") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("內容涵蓋")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.moss)
+                        Text("\(comparison.coverage)%")
+                            .font(.system(.title, design: .rounded, weight: .bold))
+                            .foregroundStyle(TalkFitTheme.pine)
+                    }
+                    Spacer()
+                    Image(systemName: comparison.coverage >= 85 ? "leaf.fill" : "leaf")
+                        .font(.title2)
+                        .foregroundStyle(TalkFitTheme.sage)
+                        .accessibilityHidden(true)
+                }
+
+                ProgressView(value: Double(comparison.coverage), total: 100)
+                    .tint(TalkFitTheme.moss)
+                    .accessibilityLabel("講稿內容涵蓋百分比")
+                    .accessibilityValue("\(comparison.coverage)%")
+
+                Text(comparison.summary)
+                    .font(.subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !comparison.missingKeywords.isEmpty {
+                    Divider().overlay(TalkFitTheme.line)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("可以補回的關鍵詞")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TalkFitTheme.ink.opacity(0.58))
+                        ForEach(comparison.missingKeywords, id: \.self) { keyword in
+                            Label(keyword, systemImage: "plus.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(TalkFitTheme.clay)
+                        }
+                    }
+                }
+
+                DisclosureGroup("查看這次的講稿段落") {
+                    Text(comparison.reference)
+                        .font(.footnote)
+                        .foregroundStyle(TalkFitTheme.ink.opacity(0.68))
+                        .lineSpacing(4)
+                        .padding(.top, 8)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption.weight(.semibold))
+                .tint(TalkFitTheme.moss)
             }
         }
-        .frame(height: 18)
-        .accessibilityLabel("語速每分鐘 \(pace) 字")
+        .accessibilityIdentifier("report.script-comparison")
     }
 }
 
@@ -390,7 +455,9 @@ private struct RetryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            BrandHeader(compact: true)
+            GardenNavigationHeader(destination: "回饋", prompt: nil) {
+                model.returnToReport()
+            }
             Spacer(minLength: 8)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -436,10 +503,28 @@ private struct ComparisonView: View {
     let model: TalkFitModel
     let comparison: ComparisonResult
 
+    @Bindable private var bindableModel: TalkFitModel
+
+    init(model: TalkFitModel, comparison: ComparisonResult) {
+        self.model = model
+        self.comparison = comparison
+        _bindableModel = Bindable(model)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                BrandHeader(compact: true)
+                GardenNavigationHeader(
+                    destination: "原始回饋",
+                    prompt: GardenLeavePrompt(
+                        title: "返回原始回饋嗎？",
+                        message: "這次前後比較會離開畫面；你仍可以從原始回饋再次重練。",
+                        leaveTitle: "返回原始回饋",
+                        stayTitle: "留在比較頁"
+                    )
+                ) {
+                    model.returnToReport()
+                }
 
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 10) {
@@ -470,7 +555,7 @@ private struct ComparisonView: View {
                             title: "語速",
                             before: "\(comparison.before.pace)",
                             after: "\(comparison.after.pace)",
-                            improvement: "節奏更自然"
+                            improvement: comparison.rhythmImprovementLabel
                         )
                         Divider().overlay(TalkFitTheme.line)
                         MetricPair(
@@ -500,15 +585,26 @@ private struct ComparisonView: View {
         .safeAreaInset(edge: .bottom) {
             BottomActionBar {
                 Button("收下這次進步") {
-                    model.returnHome()
+                    model.acceptComparison()
                 }
                 .buttonStyle(PrimaryActionStyle())
                 .accessibilityIdentifier("comparison.done")
             }
         }
+        .alert("要把進步留在這台 iPhone 嗎？", isPresented: $bindableModel.isHistoryChoicePresented) {
+            Button("暫時不要") {
+                model.declineHistoryAndFinish()
+            }
+            Button("開啟並保存") {
+                model.enableHistoryAndSave()
+            }
+            Button("留在比較頁", role: .cancel) {}
+        } message: {
+            Text("只保存日期、語言與前後指標；不保存錄音、逐字稿、逐句內容或贅字時間戳。你之後可隨時關閉或刪除。")
+        }
     }
 }
 
 #Preview("首頁") {
-    ContentView()
+    ContentView(model: TalkFitModel())
 }

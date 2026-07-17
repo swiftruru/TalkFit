@@ -8,17 +8,178 @@ final class TalkFitModel {
     var elapsed: TimeInterval = 0
     var audioLevel: Float = 0.08
     var liveTranscript = ""
+    var liveFillerEvidence: [FillerEvidence] = []
+    var liveSentencePaces: [SentencePaceFeedback] = []
     var firstResult: PracticeResult?
     var comparison: ComparisonResult?
     var fallbackNotice: String?
     var isDemoMode = false
+    var selectedLanguage: PracticeLanguage = .traditionalChinese
+    var selectedContext: PracticeContext = .selfIntroduction
+    var scriptPractice: ScriptPracticeSession?
+    var isHistoryChoicePresented = false
+    private(set) var historyPreference: HistoryPreference
+    private(set) var practiceHistory: [PracticeHistorySummary] = []
+    private(set) var fillerWordsByLanguage: [PracticeLanguage: [String]]
+
+    var activeFillerWords: [String] {
+        fillerWordsByLanguage[selectedLanguage] ?? selectedLanguage.defaultFillerWords
+    }
+
+    var activePrompt: String {
+        scriptPractice?.selectedParagraph?.text
+            ?? selectedContext.prompt(for: selectedLanguage)
+    }
+
+    var activePromptTitle: String {
+        guard let scriptPractice, let paragraph = scriptPractice.selectedParagraph else {
+            return selectedContext.promptTitle(for: selectedLanguage)
+        }
+        return "自訂講稿 · 第 \(paragraph.number)／\(scriptPractice.paragraphs.count) 段"
+    }
+
+    var usesScriptPractice: Bool {
+        scriptPractice?.selectedParagraph != nil
+    }
 
     @ObservationIgnored private let speech = AudioSpeechService()
+    @ObservationIgnored private let fillerStore: FillerLibraryStore
+    @ObservationIgnored private let historyStore: PracticeHistoryStore?
     @ObservationIgnored private var clockTask: Task<Void, Never>?
+    @ObservationIgnored private var analysisTask: Task<Void, Never>?
+    @ObservationIgnored private var analysisPaused = false
 
-    init() {
+    init(historyStore: PracticeHistoryStore? = nil) {
+        let fillerStore = FillerLibraryStore()
+        self.fillerStore = fillerStore
+        self.historyStore = historyStore
+        historyPreference = historyStore?.preference ?? .undecided
+        fillerWordsByLanguage = fillerStore.load()
         speech.levelDidChange = { [weak self] level in self?.audioLevel = level }
-        speech.transcriptDidChange = { [weak self] transcript in self?.liveTranscript = transcript }
+        speech.captureDidChange = { [weak self] capture in
+            guard let self else { return }
+            self.liveTranscript = capture.readableTranscript
+            self.liveFillerEvidence = capture.fillerEvidence
+            self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+                capture: capture,
+                duration: max(self.elapsed, 1),
+                language: self.selectedLanguage,
+                context: self.selectedContext
+            )
+        }
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+        reloadHistory()
+    }
+
+    var isHistoryEnabled: Bool {
+        historyPreference == .enabled
+    }
+
+    var recentPracticeHistory: [PracticeHistorySummary] {
+        Array(practiceHistory.prefix(3))
+    }
+
+    var practiceTrends: [PracticeTrend] {
+        PracticeTrend.make(from: practiceHistory)
+    }
+
+    var trendProgress: PracticeTrendProgress? {
+        PracticeTrendProgress.closest(from: practiceHistory)
+    }
+
+    var historyFillerSummary: String {
+        guard !practiceHistory.isEmpty else { return "累積中" }
+        let improvement = practiceHistory.reduce(0) { $0 + $1.fillerImprovement }
+        return improvement > 0 ? "−\(improvement)" : "持平"
+    }
+
+    var historyStabilitySummary: String {
+        guard !practiceHistory.isEmpty else { return "等資料" }
+        let improvement = practiceHistory.reduce(0) { $0 + $1.stabilityImprovement }
+        return improvement > 0 ? "+\(improvement)%" : "持平"
+    }
+
+    func selectLanguage(_ language: PracticeLanguage) {
+        guard stage == .home else { return }
+        selectedLanguage = language
+        speech.prewarmFillerLanguageModel(
+            language: language,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func selectContext(_ context: PracticeContext) {
+        guard stage == .home else { return }
+        selectedContext = context
+    }
+
+    @discardableResult
+    func configureScriptPractice(text: String, selectedIndex: Int) -> Bool {
+        guard stage == .home,
+              let session = ScriptPracticeSession.make(
+                text: text,
+                selectedIndex: selectedIndex
+              ) else {
+            return false
+        }
+        scriptPractice = session
+        return true
+    }
+
+    func clearScriptPractice() {
+        guard stage == .home else { return }
+        scriptPractice = nil
+    }
+
+    @discardableResult
+    func addFillerWord(_ value: String) -> Bool {
+        let normalized = selectedLanguage.normalizeFiller(value)
+        guard !normalized.isEmpty, activeFillerWords.count < 40 else { return false }
+        guard !activeFillerWords.contains(where: {
+            selectedLanguage.normalizeFiller($0) == normalized
+        }) else { return false }
+        fillerWordsByLanguage[selectedLanguage, default: []].append(normalized)
+        fillerStore.save(fillerWordsByLanguage)
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+        return true
+    }
+
+    func removeFillerWord(_ word: String) {
+        fillerWordsByLanguage[selectedLanguage, default: []].removeAll { $0 == word }
+        fillerStore.save(fillerWordsByLanguage)
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func resetFillerWords(for language: PracticeLanguage) {
+        fillerWordsByLanguage[language] = language.defaultFillerWords
+        fillerStore.save(fillerWordsByLanguage)
+        guard language == selectedLanguage else { return }
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
+    }
+
+    func resetAllFillerWords() {
+        fillerWordsByLanguage = Dictionary(
+            uniqueKeysWithValues: PracticeLanguage.allCases.map { language in
+                (language, language.defaultFillerWords)
+            }
+        )
+        fillerStore.resetAll()
+        speech.prewarmFillerLanguageModel(
+            language: selectedLanguage,
+            fillerWords: activeFillerWords
+        )
     }
 
     func startPractice(demo: Bool = false) {
@@ -32,22 +193,41 @@ final class TalkFitModel {
     func stopRecording() {
         guard case .recording(let round) = stage else { return }
         clockTask?.cancel()
-        let recognized = speech.stop()
-        if !recognized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            liveTranscript = recognized
-        }
         let capturedDuration = max(elapsed, 1)
-        stage = .analyzing
+        stage = .analyzing(round)
+        analysisPaused = false
 
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(1050))
-            guard let self, !Task.isCancelled else { return }
+        analysisTask?.cancel()
+        analysisTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let capture = self.isDemoMode
+                ? self.fallbackCapture(for: round)
+                : await self.speech.finish()
+            guard !Task.isCancelled else { return }
+            self.liveTranscript = capture.readableTranscript
+            self.liveFillerEvidence = capture.fillerEvidence
+            self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+                capture: capture,
+                duration: capturedDuration,
+                language: self.selectedLanguage,
+                context: self.selectedContext
+            )
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            while self.analysisPaused {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+            }
             switch round {
             case .first:
-                let result = self.makeResult(
-                    transcript: self.liveTranscript,
+                let result = TalkFitAnalyzer.makeResult(
+                    capture: capture,
                     duration: capturedDuration,
-                    round: .first
+                    round: .first,
+                    language: self.selectedLanguage,
+                    context: self.selectedContext,
+                    scriptReference: self.scriptReference(for: .first),
+                    fillerWords: self.activeFillerWords
                 )
                 self.firstResult = result
                 self.isDemoMode = result.source == .sample
@@ -57,10 +237,14 @@ final class TalkFitModel {
                     self.stage = .home
                     return
                 }
-                let after = self.makeResult(
-                    transcript: self.liveTranscript,
+                let after = TalkFitAnalyzer.makeResult(
+                    capture: capture,
                     duration: capturedDuration,
-                    round: .retry
+                    round: .retry,
+                    language: self.selectedLanguage,
+                    context: self.selectedContext,
+                    scriptReference: self.scriptReference(for: .retry),
+                    fillerWords: self.activeFillerWords
                 )
                 self.comparison = ComparisonResult(before: before, after: after)
                 self.stage = .comparison
@@ -73,25 +257,126 @@ final class TalkFitModel {
         stage = .retry
     }
 
+    func setAnalysisPaused(_ paused: Bool) {
+        analysisPaused = paused
+    }
+
+    func returnToReport() {
+        guard firstResult != nil else {
+            returnHome()
+            return
+        }
+        cancelTransientWork()
+        comparison = nil
+        stage = .report
+    }
+
+    func cancelRetryAndReturnToPreparation() {
+        guard firstResult != nil else {
+            returnHome()
+            return
+        }
+        cancelTransientWork()
+        comparison = nil
+        stage = .retry
+    }
+
     func returnHome() {
-        clockTask?.cancel()
-        speech.stop()
+        cancelTransientWork()
         elapsed = 0
         audioLevel = 0.08
         liveTranscript = ""
+        liveFillerEvidence = []
+        liveSentencePaces = []
         firstResult = nil
         comparison = nil
         fallbackNotice = nil
         isDemoMode = false
+        isHistoryChoicePresented = false
+        reloadHistory()
         stage = .home
+    }
+
+    func acceptComparison() {
+        guard let comparison else {
+            returnHome()
+            return
+        }
+
+        let isRealPractice = comparison.before.source == .recognized
+            && comparison.after.source == .recognized
+        guard isRealPractice else {
+            returnHome()
+            return
+        }
+
+        if historyPreference == .undecided, historyStore != nil {
+            isHistoryChoicePresented = true
+            return
+        }
+
+        if historyPreference == .enabled {
+            historyStore?.save(comparison)
+        }
+        returnHome()
+    }
+
+    func enableHistoryAndSave() {
+        setHistoryEnabled(true)
+        if let comparison {
+            historyStore?.save(comparison)
+        }
+        returnHome()
+    }
+
+    func declineHistoryAndFinish() {
+        setHistoryEnabled(false)
+        returnHome()
+    }
+
+    func setHistoryEnabled(_ enabled: Bool) {
+        historyPreference = enabled ? .enabled : .disabled
+        historyStore?.setPreference(historyPreference)
+        reloadHistory()
+    }
+
+    func deleteHistory(id: UUID) {
+        historyStore?.delete(id: id)
+        reloadHistory()
+    }
+
+    func deleteAllHistory() {
+        historyStore?.deleteAll()
+        reloadHistory()
+    }
+
+    func reloadHistory() {
+        practiceHistory = historyStore?.fetchAll() ?? []
+    }
+
+    private func cancelTransientWork() {
+        clockTask?.cancel()
+        clockTask = nil
+        analysisTask?.cancel()
+        analysisTask = nil
+        analysisPaused = false
+        speech.cancel()
+        elapsed = 0
+        audioLevel = 0.08
+        liveTranscript = ""
+        liveFillerEvidence = []
+        liveSentencePaces = []
+        fallbackNotice = nil
     }
 
     private func beginRecording(round: PracticeRound, demo: Bool) {
         clockTask?.cancel()
-        speech.stop()
+        speech.cancel()
         elapsed = 0
         audioLevel = 0.08
         liveTranscript = ""
+        liveFillerEvidence = []
+        liveSentencePaces = []
         fallbackNotice = demo ? "示範模式：會使用預先準備的穩定結果" : nil
         isDemoMode = demo
         stage = .recording(round)
@@ -101,7 +386,12 @@ final class TalkFitModel {
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.speech.start()
+                try await self.speech.start(
+                    language: self.selectedLanguage,
+                    context: self.selectedContext,
+                    referenceText: self.recordingPrompt(for: round),
+                    fillerWords: self.activeFillerWords
+                )
             } catch {
                 self.isDemoMode = true
                 self.fallbackNotice = "目前無法使用語音辨識，已切換為示範結果"
@@ -120,87 +410,65 @@ final class TalkFitModel {
                 if synthetic {
                     let wave = (sin(self.elapsed * 4.2) + sin(self.elapsed * 8.7) * 0.45 + 1.5) / 3
                     self.audioLevel = Float(max(0.08, min(0.86, wave)))
+                    self.updateDemoRecognitionPreview()
                 }
                 try? await Task.sleep(for: .milliseconds(80))
             }
         }
     }
 
-    private func makeResult(transcript rawTranscript: String, duration: TimeInterval, round: PracticeRound) -> PracticeResult {
-        let trimmed = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-        let isUsable = Self.speechCharacterCount(in: trimmed) >= 8
-        let transcript: String
-        let source: ResultSource
-        let effectiveDuration: TimeInterval
-
-        if isUsable {
-            transcript = trimmed
-            source = .recognized
-            effectiveDuration = max(duration, 4)
-        } else {
-            transcript = round == .first ? TalkFitFixtures.sampleFirstTranscript : TalkFitFixtures.sampleRetryTranscript
-            source = .sample
-            effectiveDuration = round == .first ? 31 : 22
-        }
-
-        let counts = Self.fillerCounts(in: transcript)
-        let fillerTotal = counts.values.reduce(0, +)
-        let characters = Self.speechCharacterCount(in: transcript)
-        let pace = Int((Double(characters) / effectiveDuration * 60).rounded())
-        let paceDeviation = abs(pace - 205)
-        let stability = max(42, min(96, 91 - fillerTotal * 8 - paceDeviation / 7))
-        let segment = Self.prioritySegment(in: transcript)
-
-        return PracticeResult(
-            transcript: transcript,
-            duration: effectiveDuration,
-            fillerCounts: counts,
-            pace: pace,
-            stability: stability,
-            prioritySegment: segment,
-            coachingCue: "先停半拍，再用一句話直接說出重點。",
-            source: source
+    private func updateDemoRecognitionPreview() {
+        guard case .recording(let round) = stage else { return }
+        let capture = fallbackCapture(for: round)
+        let visibleCharacters = min(capture.readableTranscript.count, max(0, Int(elapsed * 5)))
+        liveTranscript = String(capture.readableTranscript.prefix(visibleCharacters))
+        liveFillerEvidence = capture.fillerEvidence.filter { $0.timestamp <= elapsed }
+        var liveCapture = SpeechCapture.empty
+        liveCapture.readableTranscript = liveTranscript
+        liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+            capture: liveCapture,
+            duration: max(elapsed, 1),
+            language: selectedLanguage,
+            context: selectedContext
         )
     }
 
-    private static func fillerCounts(in transcript: String) -> [String: Int] {
-        Dictionary(uniqueKeysWithValues: TalkFitFixtures.fillerWords.map { filler in
-            var count = 0
-            var searchStart = transcript.startIndex
-            while searchStart < transcript.endIndex,
-                  let range = transcript.range(of: filler, range: searchStart..<transcript.endIndex) {
-                count += 1
-                searchStart = range.upperBound
-            }
-            return (filler, count)
-        })
-    }
-
-    private static func speechCharacterCount(in text: String) -> Int {
-        text.unicodeScalars.reduce(into: 0) { count, scalar in
-            if (0x4E00...0x9FFF).contains(scalar.value) || CharacterSet.alphanumerics.contains(scalar) {
-                count += 1
-            }
+    private func recordingPrompt(for round: PracticeRound) -> String {
+        if round == .retry, let firstResult {
+            return firstResult.prioritySegment
         }
+        return activePrompt
     }
 
-    private static func prioritySegment(in transcript: String) -> String {
-        let segments = transcript
-            .components(separatedBy: CharacterSet(charactersIn: "。！？!?\n"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        return segments.max { lhs, rhs in
-            score(lhs) < score(rhs)
-        }.map { $0 + "。" } ?? transcript
+    private func scriptReference(for round: PracticeRound) -> ScriptPracticeReference? {
+        guard let scriptPractice, let paragraph = scriptPractice.selectedParagraph else {
+            return nil
+        }
+        let text = round == .retry ? (firstResult?.prioritySegment ?? paragraph.text) : paragraph.text
+        return ScriptPracticeReference(
+            text: text,
+            paragraphNumber: paragraph.number,
+            paragraphCount: scriptPractice.paragraphs.count
+        )
     }
 
-    private static func score(_ segment: String) -> Int {
-        let fillerScore = TalkFitFixtures.fillerWords.reduce(0) { partial, filler in
-            partial + segment.components(separatedBy: filler).count - 1
-        } * 5
-        return fillerScore + min(segment.count, 36) / 7
+    private func fallbackCapture(for round: PracticeRound) -> SpeechCapture {
+        if let scriptReference = scriptReference(for: round) {
+            return TalkFitFixtures.scriptCapture(
+                for: round,
+                language: selectedLanguage,
+                script: scriptReference.text,
+                fillerWords: activeFillerWords
+            )
+        }
+        return TalkFitFixtures.sampleCapture(
+            for: round,
+            language: selectedLanguage,
+            context: selectedContext,
+            fillerWords: activeFillerWords
+        )
     }
+
 }
 
 private extension Duration {
