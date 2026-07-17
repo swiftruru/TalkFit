@@ -11,9 +11,11 @@ const d1DatabaseName =
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
+// `vinext deploy` generates `nodejs_compat` in wrangler.jsonc. Repeating it
+// here makes Workers Builds submit the same compatibility flag twice.
 const localBindingConfig = {
+  name: "talkfit",
   main: "./worker/index.ts",
-  compatibility_flags: ["nodejs_compat"],
   d1_databases: d1 && d1DatabaseId
     ? [
         {

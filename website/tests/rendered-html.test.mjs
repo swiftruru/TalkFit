@@ -45,12 +45,13 @@ test("includes App Store support, policy, and privacy-choice routes", async () =
   assert.match(terms, /非醫療聲明/);
 });
 
-test("keeps forms non-persistent and omits D1 unless explicitly configured", async () => {
-  const [route, privacyRoute, confirmRoute, viteConfig] = await Promise.all([
+test("keeps forms non-persistent and generates a valid Worker config", async () => {
+  const [route, privacyRoute, confirmRoute, viteConfig, packageJson] = await Promise.all([
     source("app/api/waitlist/route.ts"),
     source("app/api/privacy-choice/route.ts"),
     source("app/api/waitlist/confirm/route.ts"),
     source("vite.config.ts"),
+    source("package.json"),
   ]);
 
   assert.match(route, /demo: true/);
@@ -59,6 +60,8 @@ test("keeps forms non-persistent and omits D1 unless explicitly configured", asy
   assert.doesNotMatch(`${route}\n${privacyRoute}\n${confirmRoute}`, /prepare\(|enforceRateLimit|ensureDatabase|cloudflare:workers/);
   assert.match(viteConfig, /d1 && d1DatabaseId/);
   assert.doesNotMatch(viteConfig, /00000000-0000-4000-8000-000000000000/);
+  assert.doesNotMatch(viteConfig, /compatibility_flags/);
+  assert.equal(JSON.parse(packageJson).name, "talkfit");
 });
 
 test("bundles the real brand and product visuals", async () => {
