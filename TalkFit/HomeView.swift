@@ -95,11 +95,36 @@ struct HomeView: View {
                     .frame(width: 58, height: 2)
                     .accessibilityHidden(true)
 
+                if !model.usesScriptPractice {
+                    Divider()
+                        .overlay(TalkFitTheme.line)
+
+                    referenceScriptPicker
+                }
+
                 Divider()
                     .overlay(TalkFitTheme.line)
 
                 scriptPracticeRow
             }
+        }
+    }
+
+    private var referenceScriptPicker: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("照著唸的範例講稿")
+                .font(.caption2.weight(.semibold))
+                .tracking(1.1)
+                .foregroundStyle(TalkFitTheme.moss)
+
+            ReferenceScriptStyleSelector(selection: model.referenceScriptStyle) { style in
+                model.referenceScriptStyle = style
+            }
+
+            Text(model.referenceScriptStyle.hint)
+                .font(.caption)
+                .foregroundStyle(TalkFitTheme.ink.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

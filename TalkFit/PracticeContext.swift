@@ -53,24 +53,37 @@ enum PracticeContext: String, CaseIterable, Identifiable, Equatable {
         case (.selfIntroduction, .traditionalChinese):
             "介紹你是誰、最近在做什麼，以及一件你想讓別人記住的事。"
         case (.selfIntroduction, .english):
-            "Introduce who you are, what you are working on, and one thing you want people to remember."
+            "Tell us who you are, what you are doing these days, and one thing you want people to remember."
         case (.presentation, .traditionalChinese):
             "說明你想解決的問題、你的做法，以及為什麼值得現在開始。"
         case (.presentation, .english):
-            "Explain the problem, your approach, and why it is worth solving now."
+            "Tell us the problem, your idea, and why we should start now."
         case (.classReport, .traditionalChinese):
             "先說明今天的主題，再用一個例子告訴同學它為什麼重要。"
         case (.classReport, .english):
-            "Introduce your topic, then use one example to explain why it matters."
+            "Tell us your topic, then give one example to show why it is important."
         case (.interview, .traditionalChinese):
             "分享一項與職位最相關的經驗，說明你做了什麼，以及帶來的結果。"
         case (.interview, .english):
-            "Share one relevant experience, what you did, and the result you created."
+            "Share one thing you did, how you did it, and what happened in the end."
         }
     }
 
     func defaultRecordingScript(for language: PracticeLanguage) -> String {
-        sampleTranscript(for: .retry, language: language)
+        recordingScript(for: language, style: .clean)
+    }
+
+    /// The script shown on the recording screen for people to read aloud.
+    /// The filler version is the same talk with hesitation words written in,
+    /// so a visitor can see TalkFit catch them.
+    func recordingScript(
+        for language: PracticeLanguage,
+        style: ReferenceScriptStyle
+    ) -> String {
+        switch style {
+        case .clean: sampleTranscript(for: .retry, language: language)
+        case .withFillers: sampleTranscript(for: .first, language: language)
+        }
     }
 
     func recognitionHint(for language: PracticeLanguage) -> String {
@@ -88,14 +101,16 @@ enum PracticeContext: String, CaseIterable, Identifiable, Equatable {
 
     func comfortablePace(for language: PracticeLanguage) -> ClosedRange<Int> {
         switch (self, language) {
-        case (.selfIntroduction, .traditionalChinese): 170...235
-        case (.presentation, .traditionalChinese): 155...215
-        case (.classReport, .traditionalChinese): 165...225
-        case (.interview, .traditionalChinese): 150...210
-        case (.selfIntroduction, .english): 110...160
-        case (.presentation, .english): 100...145
-        case (.classReport, .english): 105...150
-        case (.interview, .english): 95...140
+        // Upper bounds leave room for reading a script aloud, which runs
+        // noticeably faster than speaking off the cuff.
+        case (.selfIntroduction, .traditionalChinese): 170...260
+        case (.presentation, .traditionalChinese): 155...245
+        case (.classReport, .traditionalChinese): 165...255
+        case (.interview, .traditionalChinese): 150...240
+        case (.selfIntroduction, .english): 110...180
+        case (.presentation, .english): 100...165
+        case (.classReport, .english): 105...170
+        case (.interview, .english): 95...160
         }
     }
 
@@ -103,6 +118,18 @@ enum PracticeContext: String, CaseIterable, Identifiable, Equatable {
         let range = comfortablePace(for: language)
         if pace < range.lowerBound { return .slow }
         if pace > range.upperBound { return .fast }
+        return .steady
+    }
+
+    /// Pace verdict for the number shown while recording.
+    ///
+    /// The live number is an estimate from a few seconds of speech, so it
+    /// only says "fast" once it is clearly past the comfortable range. A
+    /// natural burst of quick words should not trip the warning.
+    func livePaceState(for pace: Int, language: PracticeLanguage) -> PaceState {
+        let range = comfortablePace(for: language)
+        if pace < range.lowerBound { return .slow }
+        if Double(pace) > Double(range.upperBound) * 1.12 { return .fast }
         return .steady
     }
 
@@ -142,33 +169,33 @@ enum PracticeContext: String, CaseIterable, Identifiable, Equatable {
         case (.selfIntroduction, .retry, .traditionalChinese):
             "大家好，我是小安，目前在台北學習產品設計。我最近和同學一起做校園服務的專題，也練習把想法說得更清楚。我喜歡觀察生活裡的小細節，希望未來能做出貼心、又真正解決問題的產品。"
         case (.selfIntroduction, .first, .english):
-            "Hi, I'm Mia, a product design student in Taipei. Um, I'm learning how to turn everyday observations into clear product ideas, and I also practice presenting those ideas with confidence. Actually, I care about making technology feel calm and thoughtful."
+            "Hi, I'm Mia. I am a student in Taipei, and I study design. Um, I am working on a school project with my classmates, and, like, I also practice speaking in front of people. Actually, I love to make things that are easy to use, you know, and help people every day."
         case (.selfIntroduction, .retry, .english):
-            "Hi, I'm Mia, a product design student in Taipei. I'm learning to turn everyday observations into clear product ideas and present them with confidence. I care about calm, thoughtful technology."
+            "Hi, I'm Mia. I am a student in Taipei, and I study design. I am working on a school project with my classmates, and I practice speaking in front of people. I love to make things that are easy to use and help people every day."
         case (.presentation, .first, .traditionalChinese):
-            "今天我想提案一個校園共乘服務。嗯，現在很多同學下課後等車很久，然後也不知道誰剛好要去同一個地方。其實我們想用即時配對，讓大家更快找到安全的同行夥伴，就是先從晚間校車站開始測試。"
+            "今天我想提案一個校園共乘服務。嗯，現在很多同學下課後等車很久，然後也不知道誰剛好要去同一個地方。其實我們想用即時媒合，讓大家更快找到安全的同行夥伴，就是先從晚間校車站開始測試。"
         case (.presentation, .retry, .traditionalChinese):
-            "今天我想提案一個校園共乘服務。許多同學下課後等車很久，我們用即時配對，幫助大家找到安全的同行夥伴，並先從晚間校車站開始測試。"
+            "今天我想提案一個校園共乘服務。許多同學下課後等車很久，我們用即時媒合，幫助大家找到安全的同行夥伴，並先從晚間校車站開始測試。"
         case (.presentation, .first, .english):
-            "Today I want to propose a campus ride-sharing service. Um, students often wait a long time after class, and they do not know who is heading in the same direction. Actually, our matching flow helps them find a safe travel partner, starting with the evening shuttle stop."
+            "Today I want to share an idea for a school ride app. Um, many students wait a long time for the bus after class, and, like, they do not know who is going the same way. Actually, our app helps them find a safe friend to ride with, you know, and we will start at the night bus stop."
         case (.presentation, .retry, .english):
-            "Today I want to propose a campus ride-sharing service. Students often wait a long time after class, so our matching flow helps them find a safe travel partner, starting with the evening shuttle stop."
+            "Today I want to share an idea for a school ride app. Many students wait a long time for the bus after class. Our app helps them find a safe friend to ride with, and we will start at the night bus stop."
         case (.classReport, .first, .traditionalChinese):
-            "今天的報告主題是城市熱島。嗯，水泥和柏油在白天吸收熱量，然後晚上又慢慢釋放，所以市中心常常比郊區更熱。這個現象會增加用電，也會影響長者的健康。"
+            "今天的報告主題是城市熱島。嗯，水泥和柏油在白天吸收熱量，然後晚上又慢慢釋放，所以市中心常常比郊區更熱。其實這種情況會增加用電，就是也會影響長者的健康。"
         case (.classReport, .retry, .traditionalChinese):
             "今天的報告主題是城市熱島。水泥和柏油白天吸收熱量，晚上再慢慢釋放，因此市中心通常比郊區更熱，也會增加用電並影響長者健康。"
         case (.classReport, .first, .english):
-            "Today's topic is the urban heat island effect. Um, concrete absorbs heat during the day and releases it slowly at night, so city centers stay warmer than nearby rural areas. This increases energy use and can affect older residents."
+            "Today I want to talk about why cities are hot. Um, roads and buildings take in heat during the day, and, like, they give it back slowly at night. Actually, this makes the city hotter than the countryside, you know, and people use more power to stay cool."
         case (.classReport, .retry, .english):
-            "Today's topic is the urban heat island effect. Concrete absorbs heat during the day and releases it at night, so city centers stay warmer, increasing energy use and affecting older residents."
+            "Today I want to talk about why cities are hot. Roads and buildings take in heat during the day and give it back at night. This makes the city hotter than the countryside, and people use more power to stay cool."
         case (.interview, .first, .traditionalChinese):
             "我最相關的經驗是帶領三人團隊改善選課流程。嗯，我先訪談學生，然後整理最常卡住的步驟。其實我們重新設計資訊順序後，測試完成時間少了兩分鐘，就是讓使用者更快找到需要的課程。"
         case (.interview, .retry, .traditionalChinese):
             "我曾帶領三人團隊改善選課流程。我訪談學生並找出最常卡住的步驟，重新設計資訊順序後，測試完成時間縮短兩分鐘，讓使用者更快找到需要的課程。"
         case (.interview, .first, .english):
-            "My most relevant experience was leading a three-person team to improve course registration. Um, I interviewed students and mapped the steps where they got stuck. Actually, after we reorganized the information, task time dropped by two minutes."
+            "I want to tell you about a team project at school. Um, I led a team of three people, and, like, we asked students what was hard about choosing classes. Actually, we made the page easier to read, you know, and students finished two minutes faster."
         case (.interview, .retry, .english):
-            "I led a three-person team to improve course registration. I interviewed students, identified where they got stuck, and reorganized the information. Task time dropped by two minutes."
+            "I led a team of three people at school. We asked students what was hard about choosing classes. Then we made the page easier to read, and students finished two minutes faster."
         }
     }
 }

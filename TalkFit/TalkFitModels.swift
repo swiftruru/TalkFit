@@ -56,6 +56,8 @@ enum FillerEvidenceSource: Equatable {
     case alternative
     case final
     case sample
+    /// Heard in the audio signal with no matching recognized text.
+    case acoustic
 }
 
 struct FillerEvidence: Identifiable, Equatable {

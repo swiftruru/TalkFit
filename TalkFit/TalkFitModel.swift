@@ -22,6 +22,8 @@ final class TalkFitModel {
     var selectedLanguage: PracticeLanguage = .traditionalChinese
     var selectedContext: PracticeContext = .selfIntroduction
     var scriptPractice: ScriptPracticeSession?
+    /// Which built-in script the recording screen shows for reading aloud.
+    var referenceScriptStyle: ReferenceScriptStyle = .clean
     private(set) var retryParagraph: ScriptParagraph?
     var isHistoryChoicePresented = false
     private(set) var historyPreference: HistoryPreference
@@ -51,6 +53,14 @@ final class TalkFitModel {
             return selectedContext.promptTitle(for: selectedLanguage)
         }
         return "自訂講稿 · 完整 \(scriptPractice.paragraphs.count) 段"
+    }
+
+    /// The built-in script for the current context, in the chosen version.
+    var referenceScript: String {
+        selectedContext.recordingScript(
+            for: selectedLanguage,
+            style: referenceScriptStyle
+        )
     }
 
     var usesScriptPractice: Bool {
@@ -88,6 +98,7 @@ final class TalkFitModel {
     @ObservationIgnored private var recordingStartTask: Task<Void, Never>?
     @ObservationIgnored private var analysisTask: Task<Void, Never>?
     @ObservationIgnored private var analysisPaused = false
+    @ObservationIgnored private var livePaceEstimator = LivePaceEstimator()
     @ObservationIgnored private var retryBaselineResult: PracticeResult?
     @ObservationIgnored private var pendingHistoryCompletion: PendingHistoryCompletion?
     @ObservationIgnored private var pendingRecordingSessionID: UUID?
@@ -109,12 +120,7 @@ final class TalkFitModel {
             guard let self else { return }
             self.liveTranscript = capture.readableTranscript
             self.liveFillerEvidence = capture.fillerEvidence
-            self.liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
-                capture: capture,
-                duration: max(self.elapsed, 1),
-                language: self.selectedLanguage,
-                context: self.selectedContext
-            )
+            self.updateLivePace(with: capture)
         }
         speech.prewarmFillerLanguageModel(
             language: selectedLanguage,
@@ -494,6 +500,7 @@ final class TalkFitModel {
         liveTranscript = ""
         liveFillerEvidence = []
         liveSentencePaces = []
+        livePaceEstimator.reset()
         fallbackNotice = demo ? "示範模式：會使用預先準備的穩定結果" : nil
         isDemoMode = demo
         stage = .recording(round)
@@ -543,6 +550,42 @@ final class TalkFitModel {
                 try? await Task.sleep(for: .milliseconds(80))
             }
         }
+    }
+
+    /// Updates the pace shown while recording.
+    ///
+    /// Partial results usually have no usable word timings, so the pace then
+    /// comes from how fast the transcript has been growing on the clock. The
+    /// previous reading stays on screen until there is enough new speech.
+    private func updateLivePace(with capture: SpeechCapture) {
+        let language = selectedLanguage
+        let context = selectedContext
+        let recentPace = livePaceEstimator.record(
+            time: elapsed,
+            units: language.speechUnitCount(in: capture.readableTranscript)
+        )
+        if TranscriptSentenceSegmenter.hasReliableTiming(capture: capture, language: language) {
+            liveSentencePaces = TalkFitAnalyzer.sentencePaceFeedback(
+                capture: capture,
+                duration: max(elapsed, 1),
+                language: language,
+                context: context
+            )
+            return
+        }
+        guard let recentPace else { return }
+        let latestSentence = TalkFitAnalyzer.sentenceTexts(
+            in: capture.readableTranscript,
+            language: language
+        ).last ?? capture.readableTranscript
+        liveSentencePaces = [
+            SentencePaceFeedback(
+                text: latestSentence,
+                pace: recentPace,
+                state: context.livePaceState(for: recentPace, language: language),
+                context: context
+            )
+        ]
     }
 
     private func updateDemoRecognitionPreview() {

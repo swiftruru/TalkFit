@@ -25,6 +25,7 @@ final class AudioSpeechService {
     private var recordingFile: AVAudioFile?
     private var recordingFileURL: URL?
     private var tapInstalled = false
+    private var voiceActivity: VoiceActivityRecorder?
 
     private(set) var latestCapture = SpeechCapture.empty
     var levelDidChange: (Float) -> Void = { _ in }
@@ -142,9 +143,13 @@ final class AudioSpeechService {
         self.recordingFile = recordingFile
         recordingFileURL = recordingURL
 
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self, request, recordingFile] buffer, _ in
+        let voiceActivity = VoiceActivityRecorder()
+        self.voiceActivity = voiceActivity
+
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self, request, recordingFile, voiceActivity] buffer, _ in
             request.append(buffer)
             try? recordingFile.write(from: buffer)
+            voiceActivity.append(buffer)
             guard let channel = buffer.floatChannelData?.pointee else { return }
             let frameLength = Int(buffer.frameLength)
             guard frameLength > 0 else { return }
@@ -203,6 +208,7 @@ final class AudioSpeechService {
     func cancel() {
         stopAudioInput()
         let abandonedRecordingURL = recordingFileURL
+        voiceActivity = nil
         recordingFile = nil
         recordingFileURL = nil
         recognitionRequest?.endAudio()
@@ -338,7 +344,22 @@ final class AudioSpeechService {
         continuation.resume(returning: latestCapture)
     }
 
+    /// Adds hesitation sounds that are audible in the recording but that the
+    /// recognizer left out of every transcription.
+    private func appendHesitationEvidence() {
+        guard let voiceActivity else { return }
+        self.voiceActivity = nil
+        let sounds = HesitationSoundDetector.detect(frames: voiceActivity.snapshot())
+        latestCapture.fillerEvidence += HesitationSoundDetector.evidence(
+            from: sounds,
+            existing: latestCapture.fillerEvidence,
+            language: currentLanguage
+        )
+        latestCapture.fillerEvidence.sort { $0.timestamp < $1.timestamp }
+    }
+
     private func finalizeRecordedAudio() {
+        appendHesitationEvidence()
         recordingFile = nil
         latestCapture.recordedFileURL = recordingFileURL
         recordingFileURL = nil

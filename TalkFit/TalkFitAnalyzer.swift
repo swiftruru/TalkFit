@@ -35,9 +35,14 @@ enum TalkFitAnalyzer {
         )
         let evidenceCounts = Dictionary(grouping: effectiveCapture.fillerEvidence, by: \FillerEvidence.word)
             .mapValues(\.count)
-        let counts = Dictionary(uniqueKeysWithValues: fillerWords.map { word in
+        var counts = Dictionary(uniqueKeysWithValues: fillerWords.map { word in
             (word, max(visibleCounts[word] ?? 0, evidenceCounts[word] ?? 0))
         })
+        // Hesitation sounds found in the audio never appear in the transcript
+        // or the filler library, so they are counted under their own label.
+        for event in effectiveCapture.fillerEvidence where event.source == .acoustic {
+            counts[event.word] = max(counts[event.word] ?? 0, evidenceCounts[event.word] ?? 0)
+        }
         let fillerTotal = counts.values.reduce(0, +)
         let units = language.speechUnitCount(in: transcript)
         let pace = Int((Double(units) / effectiveDuration * 60).rounded())

@@ -37,25 +37,25 @@ struct PracticeContextTests {
     func paceRangesDependOnContext() {
         #expect(
             PracticeContext.selfIntroduction.paceState(
-                for: 225,
+                for: 255,
                 language: .traditionalChinese
             ) == .steady
         )
         #expect(
             PracticeContext.presentation.paceState(
-                for: 225,
+                for: 255,
                 language: .traditionalChinese
             ) == .fast
         )
         #expect(
             PracticeContext.interview.paceState(
-                for: 145,
+                for: 170,
                 language: .english
             ) == .fast
         )
         #expect(
             PracticeContext.selfIntroduction.paceState(
-                for: 145,
+                for: 170,
                 language: .english
             ) == .steady
         )
@@ -71,7 +71,7 @@ struct PracticeContextTests {
                 SpeechTextSegment(
                     text: "今天介紹產品",
                     timestamp: 0,
-                    duration: 1.6
+                    duration: 1.4
                 )
             ],
             source: .recognized
@@ -79,18 +79,18 @@ struct PracticeContextTests {
 
         let introduction = try #require(TalkFitAnalyzer.sentencePaceFeedback(
             capture: capture,
-            duration: 1.6,
+            duration: 1.4,
             language: .traditionalChinese,
             context: .selfIntroduction
         ).first)
         let presentation = try #require(TalkFitAnalyzer.sentencePaceFeedback(
             capture: capture,
-            duration: 1.6,
+            duration: 1.4,
             language: .traditionalChinese,
             context: .presentation
         ).first)
 
-        #expect(introduction.pace == 225)
+        #expect(introduction.pace == 257)
         #expect(introduction.state == .steady)
         #expect(presentation.state == .fast)
         #expect(presentation.suggestion.contains("觀眾"))
@@ -137,5 +137,55 @@ struct PracticeContextTests {
                 #expect(firstCount > retryCount)
             }
         }
+    }
+}
+
+struct ReferenceScriptTests {
+    @Test("每個情境的贅字版講稿都有足夠贅字，正常版完全沒有")
+    func fillerAndCleanScriptsDiffer() {
+        for language in PracticeLanguage.allCases {
+            for context in PracticeContext.allCases {
+                let fillers = language.defaultFillerWords
+                let filler = context.recordingScript(for: language, style: .withFillers)
+                let clean = context.recordingScript(for: language, style: .clean)
+                let fillerCount = TalkFitAnalyzer.fillerCounts(
+                    in: filler,
+                    fillerWords: fillers,
+                    language: language
+                ).values.reduce(0, +)
+                let cleanCount = TalkFitAnalyzer.fillerCounts(
+                    in: clean,
+                    fillerWords: fillers,
+                    language: language
+                ).values.reduce(0, +)
+
+                #expect(fillerCount == 4, "\(context.rawValue) \(language.rawValue)")
+                #expect(cleanCount == 0, "\(context.rawValue) \(language.rawValue)")
+                #expect(context.defaultRecordingScript(for: language) == clean)
+            }
+        }
+    }
+
+    @Test("只有贅字版會把贅字標成橘色")
+    func onlyFillerVersionHighlightsFillers() {
+        let language = PracticeLanguage.traditionalChinese
+        let script = PracticeContext.selfIntroduction.recordingScript(
+            for: language,
+            style: .withFillers
+        )
+        let highlighted = ReferenceScriptStyle.withFillers.displayText(
+            script,
+            fillerWords: language.defaultFillerWords,
+            language: language
+        )
+        let plain = ReferenceScriptStyle.clean.displayText(
+            script,
+            fillerWords: language.defaultFillerWords,
+            language: language
+        )
+
+        #expect(highlighted.runs.filter { $0.backgroundColor != nil }.count == 4)
+        #expect(plain.runs.allSatisfy { $0.backgroundColor == nil })
+        #expect(String(highlighted.characters) == script)
     }
 }

@@ -54,8 +54,8 @@ enum PracticeLanguage: String, CaseIterable, Identifiable, Equatable {
 
     var comfortablePace: ClosedRange<Int> {
         switch self {
-        case .traditionalChinese: 170...235
-        case .english: 110...160
+        case .traditionalChinese: 170...260
+        case .english: 110...180
         }
     }
 
