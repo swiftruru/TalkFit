@@ -29,7 +29,7 @@ enum FillerEvidenceReducer {
         case .final: 3
         case .partial: 2
         case .alternative: 1
-        case .sample: 0
+        case .sample, .acoustic: 0
         }
     }
 }

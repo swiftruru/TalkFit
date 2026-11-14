@@ -36,7 +36,8 @@ enum TranscriptSentenceSegmenter {
         }
 
         guard !orderedSegments.isEmpty,
-              segmentUnits >= max(2, Int(Double(transcriptUnits) * 0.6)) else {
+              segmentUnits >= max(2, Int(Double(transcriptUnits) * 0.6)),
+              hasPlausibleTiming(orderedSegments, units: segmentUnits, language: language) else {
             return proportionalSentences(
                 in: capture.readableTranscript,
                 duration: duration,
@@ -114,6 +115,37 @@ enum TranscriptSentenceSegmenter {
                 pauseAfter: pauseAfter
             )
         }
+    }
+
+    /// Whether the recognizer's word timings can be trusted for pace.
+    ///
+    /// While a recording is still in progress Apple Speech reports partial
+    /// results whose segments all sit at time zero with no duration. Treating
+    /// those as real would squeeze a whole sentence into a fraction of a
+    /// second and report an absurdly fast pace.
+    static func hasReliableTiming(
+        capture: SpeechCapture,
+        language: PracticeLanguage
+    ) -> Bool {
+        let segments = capture.segments.filter { language.speechUnitCount(in: $0.text) > 0 }
+        let units = segments.reduce(0) { $0 + language.speechUnitCount(in: $1.text) }
+        return hasPlausibleTiming(segments, units: units, language: language)
+    }
+
+    private static func hasPlausibleTiming(
+        _ segments: [SpeechTextSegment],
+        units: Int,
+        language: PracticeLanguage
+    ) -> Bool {
+        guard let start = segments.map(\.timestamp).min(),
+              let end = segments.map({ $0.timestamp + $0.duration }).max() else {
+            return false
+        }
+        let span = end - start
+        guard span > 0 else { return false }
+        // Faster than anyone can speak means the timings are placeholders.
+        let fastestPossible: Double = language == .traditionalChinese ? 10 : 6
+        return Double(units) / span <= fastestPossible
     }
 
     private static func proportionalSentences(

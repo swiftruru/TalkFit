@@ -20,7 +20,7 @@ struct PracticeTrendTests {
     func buildsChronologicalTrendFromAfterMetrics() throws {
         let history = [
             summary(day: 3, afterFillers: 1, afterPace: 205, afterStability: 84),
-            summary(day: 1, afterFillers: 4, afterPace: 260, afterStability: 60),
+            summary(day: 1, afterFillers: 4, afterPace: 285, afterStability: 60),
             summary(day: 2, afterFillers: 2, afterPace: 230, afterStability: 72)
         ]
 
@@ -28,7 +28,7 @@ struct PracticeTrendTests {
 
         #expect(trend.points.map(\.completedAt) == [date(day: 1), date(day: 2), date(day: 3)])
         #expect(trend.points.map(\.fillerCount) == [4, 2, 1])
-        #expect(trend.points.map(\.pace) == [260, 230, 205])
+        #expect(trend.points.map(\.pace) == [285, 230, 205])
         #expect(trend.points.map(\.stability) == [60, 72, 84])
         #expect(trend.fillerChange == -3)
         #expect(trend.stabilityChange == 24)

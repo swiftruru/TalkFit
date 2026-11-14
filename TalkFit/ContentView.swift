@@ -244,12 +244,22 @@ private struct RecordingView: View {
                     paragraphs: session.paragraphs
                 )
             }
-        } else {
+        } else if round == .retry {
             RecordingReferenceText(
-                title: round == .retry ? "這次重練的句子" : "\(model.selectedContext.shortName)預設講稿",
-                text: round == .retry
-                    ? model.retryPrompt
-                    : model.selectedContext.defaultRecordingScript(for: model.selectedLanguage)
+                title: "這次重練的句子",
+                text: AttributedString(model.retryPrompt)
+            )
+        } else {
+            let style = model.referenceScriptStyle
+            RecordingReferenceText(
+                title: "\(model.selectedContext.shortName)範例講稿 · \(style.title)",
+                text: style.displayText(
+                    model.referenceScript,
+                    fillerWords: model.activeFillerWords,
+                    language: model.selectedLanguage
+                ),
+                style: style,
+                selectStyle: { model.referenceScriptStyle = $0 }
             )
         }
     }
@@ -288,21 +298,32 @@ private struct ScriptRecordingText: View {
 
 private struct RecordingReferenceText: View {
     let title: String
-    let text: String
+    let text: AttributedString
+    /// When set, the card offers a switch between the two script versions.
+    var style: ReferenceScriptStyle?
+    var selectStyle: (ReferenceScriptStyle) -> Void = { _ in }
 
     var body: some View {
         NotebookSection(title: title) {
-            ScrollView {
-                Text(text)
-                    .font(.body.weight(.medium))
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 12) {
+                if let style {
+                    ReferenceScriptStyleSelector(
+                        selection: style,
+                        compact: true,
+                        select: selectStyle
+                    )
+                }
+                ScrollView {
+                    Text(text)
+                        .font(.body.weight(.medium))
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel("\(title)：\(String(text.characters))")
+                }
+                .frame(minHeight: 82, maxHeight: 176)
             }
-            .frame(minHeight: 82, maxHeight: 164)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title)：\(text)")
     }
 }
 
